@@ -524,12 +524,11 @@
     <div class="brand">
       <svg width="30" height="30" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0" aria-label="Framework">
         <rect width="512" height="512" rx="76" fill="#161b22"/>
-        <rect x="108" y="104" width="70" height="316" rx="10" fill="#e8f0fe"/>
-        <rect x="178" y="104" width="228" height="70" rx="10" fill="#e8f0fe"/>
-        <rect x="178" y="222" width="172" height="70" rx="10" fill="#e8f0fe"/>
-        <rect x="108" y="446" width="155" height="24" rx="11" fill="#22c55e"/>
-        <rect x="271" y="446" width="85" height="24" rx="11" fill="#f59e0b"/>
-        <rect x="364" y="446" width="42" height="24" rx="11" fill="#ef4444"/>
+        <rect x="68" y="50"  width="376" height="68" rx="13" fill="#22C55E"/>
+        <rect x="68" y="136" width="84"  height="68" rx="13" fill="#194B33"/>
+        <rect x="68" y="222" width="244" height="68" rx="13" fill="#EA970C"/>
+        <rect x="68" y="308" width="84"  height="68" rx="13" fill="#54401C"/>
+        <rect x="68" y="394" width="84"  height="68" rx="13" fill="#CE3E3F"/>
       </svg>
       <div class="brand-name">Framework</div>
     </div>
@@ -959,8 +958,10 @@ function load() {
         billing: p.settings?.billingModel || '',
         startDate: p.settings?.startDate || '',
         pm: p.settings?.pm || '',
+        currentPhase: null,
         createdAt: today(),
-        tracker: p.tracker || {}
+        tracker: p.tracker || {},
+        history: []
       };
       S.projects[id] = proj;
       S.activeProjectId = id;
@@ -1058,7 +1059,7 @@ function stalenessDetails(pid, artId) {
   // Check phase-past flag
   const art = ARTS.find(a => a.id === artId);
   const p   = getProject(pid);
-  if (art && p?.currentPhase) {
+  if (art && p && p.currentPhase) {
     const fp = folderPhase(art.folder);
     if (fp && fp < p.currentPhase && !['Complete','Current','N/A','Stale'].includes(stored)) {
       return { overdueDays:0, dueSoon:false, phasePast:true };
@@ -1109,16 +1110,21 @@ function logChange(pid, artId, changes) {
       field: ch.field, from: ch.from||'', to: ch.to||''
     });
   });
-  if (p.history.length > 500) p.history.length = 500;
+  if (p.history.length > 500) p.history = p.history.slice(0, 500);
 }
 
 function fmtTs(ts) {
-  const d = new Date(ts);
+  if (!ts) return '—';
+  const d    = new Date(ts);
+  if (isNaN(d.getTime())) return '—';
   const diff = Math.floor((Date.now() - d.getTime()) / 86400000);
   if (diff === 0) return 'Today';
   if (diff === 1) return 'Yesterday';
   if (diff < 7)   return `${diff}d ago`;
-  return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  const opts = diff > 335
+    ? { month:'short', day:'numeric', year:'numeric' }
+    : { month:'short', day:'numeric' };
+  return d.toLocaleDateString('en-US', opts);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1224,8 +1230,8 @@ function effectiveStatus(pid, artId) {
   const _art = ARTS.find(a => a.id === artId);
   const _p   = getProject(pid);
   if (_art && _p && _p.currentPhase) {
-    const fp = folderPhase(_art.folder);
-    if (fp && fp < _p.currentPhase && !['Complete','Current','N/A','Stale'].includes(stored))
+    const _fp = folderPhase(_art.folder);
+    if (_fp && _fp < _p.currentPhase && !['Complete','Current','N/A','Stale'].includes(stored))
       return 'Stale';
   }
   if (stored === 'Stale' || stored === 'Not Started') return stored;
@@ -1361,19 +1367,19 @@ function renderTracker() {
       const e    = entry(a.id);
       const effS = effectiveStatus(S.activeProjectId, a.id);
       if (fStatus && effS !== fStatus) return false;
-      const _eh = effectiveHealth(S.activeProjectId, a.id);
-      const _ds = _eh === "amber" && stalenessDetails(S.activeProjectId, a.id).dueSoon;
-      if (fHealth === "due-soon" && !_ds) return false;
-      if (fHealth && fHealth !== "due-soon" && _eh !== fHealth) return false;
+      const _eh       = effectiveHealth(S.activeProjectId, a.id);
+      const _isDueSoon = _eh === 'amber' && stalenessDetails(S.activeProjectId, a.id).dueSoon;
+      if (fHealth === 'due-soon'  && !_isDueSoon) return false;
+      if (fHealth && fHealth !== 'due-soon' && _eh !== fHealth) return false;
       return true;
     });
     if (!arts.length) return;
     total += arts.length;
 
     const allArts = ARTS.filter(a => a.folder === folder);
-    const fg = allArts.filter(a => health(effectiveStatus(S.activeProjectId, a.id))==='green').length;
-    const fa = allArts.filter(a => health(effectiveStatus(S.activeProjectId, a.id))==='amber').length;
-    const fr = allArts.filter(a => health(effectiveStatus(S.activeProjectId, a.id))==='red').length;
+    const fg = allArts.filter(a => effectiveHealth(S.activeProjectId, a.id)==='green').length;
+    const fa = allArts.filter(a => effectiveHealth(S.activeProjectId, a.id)==='amber').length;
+    const fr = allArts.filter(a => effectiveHealth(S.activeProjectId, a.id)==='red').length;
 
     const col = S.ui.collapsed[folder];
     const _fp = folderPhase(folder);
@@ -1948,15 +1954,21 @@ function initProjectTracker(pid) {
   const p = getProject(pid);
   if (!p) return;
   p.tracker = {};
-  const td = today();
+  const cur = p.currentPhase || 0;   // 0 = no phase set
   ARTS.forEach(a => {
-    p.tracker[a.id] = {
-      status:      projectApplies(pid, a) ? 'Future' : 'N/A',
-      lastUpdated: td,
-      url:         '',
-      cadence:     '',
-      notes:       '',
-    };
+    const fp      = folderPhase(a.folder); // 1–6 for phase folders, null for always-active
+    const applies = projectApplies(pid, a);
+    let status;
+    if (!applies) {
+      status = 'N/A';
+    } else if (fp) {
+      // Phase folders 01–06: Future until the project reaches that phase
+      status = (cur && fp <= cur) ? 'Not Started' : 'Future';
+    } else {
+      // Always-active folders 07–17: start as Not Started
+      status = 'Not Started';
+    }
+    p.tracker[a.id] = { status, lastUpdated: '', url: '', cadence: '', notes: '' };
   });
 }
 
