@@ -221,7 +221,20 @@
     .cell-name { font-size: 13px; font-weight: 500; }
     .cell-na-hint { font-size: 10px; color: var(--text-d); margin-left: 5px; }
     .cell-date { font-size: 12px; color: var(--text-m); white-space: nowrap; }
-    .cell-owner { font-size: 12px; color: var(--text-m); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* status-cell: clickable badge, inline editor */
+    .status-cell { position: relative; }
+    .status-cell:hover .sbadge { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .inline-status-sel {
+      font-family: var(--font); font-size: 11px; font-weight: 600;
+      background: var(--surface); border: 2px solid var(--accent);
+      color: var(--text); border-radius: 20px;
+      padding: 2px 22px 2px 10px; cursor: pointer; outline: none;
+      appearance: none; -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%233b9eff' d='M5 7L1 3h8z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 7px center;
+      box-shadow: 0 2px 10px rgba(0,0,0,.35); max-width: 130px;
+    }
+    [data-theme="light"] .inline-status-sel { box-shadow: 0 2px 10px rgba(0,0,0,.12); }
 
     /* ── STATUS BADGES ── */
     .sbadge {
@@ -582,15 +595,9 @@
           <option>Stale</option><option>N/A</option><option>Deferred</option><option>Future</option>
         </select>
       </div>
-      <div class="fgrid">
-        <div class="form-group">
-          <label class="flabel">Last Updated</label>
-          <input type="date" class="finput" id="eDate">
-        </div>
-        <div class="form-group">
-          <label class="flabel">Owner</label>
-          <input type="text" class="finput" id="eOwner" placeholder="Name or initials">
-        </div>
+      <div class="form-group">
+        <label class="flabel">Last Updated</label>
+        <input type="date" class="finput" id="eDate" style="max-width:180px">
       </div>
       <div class="form-group">
         <label class="flabel">Notes</label>
@@ -1037,7 +1044,7 @@ function renderTracker() {
         <table><thead><tr>
           <th style="width:36px">#</th><th>Artifact</th>
           <th style="width:145px">Status</th><th style="width:105px">Last Updated</th>
-          <th style="width:120px">Owner</th><th style="width:130px">Health</th>
+          <th style="width:130px">Health</th>
         </tr></thead><tbody>`;
 
     arts.forEach(a => {
@@ -1048,9 +1055,8 @@ function renderTracker() {
       html += `<tr class="${app?'':'row-na'}" onclick="openEdit(${a.id})">
         <td class="cell-num">${a.id}</td>
         <td><span class="cell-name">${esc(a.name)}</span>${!app?'<span class="cell-na-hint">(not applicable)</span>':''}</td>
-        <td>${sbadge(e.status)}</td>
+        <td class="status-cell" onclick="statusClick(event,${a.id})" title="Click to change status">${sbadge(e.status)}</td>
         <td class="cell-date">${fmtDate(e.lastUpdated)}</td>
-        <td class="cell-owner">${e.owner?esc(e.owner):'<span style="color:var(--text-d)">—</span>'}</td>
         <td>${hbadge(h)}</td>
       </tr>`;
     });
@@ -1367,6 +1373,70 @@ function populateFolderFilter() {
 }
 
 // ═══════════════════════════════════════════════════════
+//  INLINE STATUS EDITOR
+// ═══════════════════════════════════════════════════════
+function statusClick(event, artId) {
+  event.stopPropagation();
+  if (!S.activeProjectId) return;
+
+  const cell = event.currentTarget;
+  // If an inline-select is already open in this cell, ignore
+  if (cell.querySelector('.inline-status-sel')) return;
+
+  const e   = entry(artId);
+  const statuses = ['Not Started','In Progress','Complete','Current','Stale','N/A','Deferred','Future'];
+  const origHTML = cell.innerHTML;
+
+  const sel = document.createElement('select');
+  sel.className = 'inline-status-sel';
+  statuses.forEach(st => {
+    const opt = document.createElement('option');
+    opt.value = st; opt.textContent = st;
+    if (st === (e.status || 'Not Started')) opt.selected = true;
+    sel.appendChild(opt);
+  });
+
+  cell.innerHTML = '';
+  cell.appendChild(sel);
+  sel.focus();
+
+  let committed = false;
+
+  function commit() {
+    if (committed) return;
+    committed = true;
+    const newStatus = sel.value;
+    const pid = S.activeProjectId;
+    if (!S.projects[pid].tracker) S.projects[pid].tracker = {};
+    const existing = projectEntry(pid, artId);
+    S.projects[pid].tracker[artId] = {
+      ...existing,
+      status: newStatus,
+      lastUpdated: today(),
+    };
+    save();
+    // Preserve scroll position through re-render
+    const main = document.querySelector('main');
+    const scrollY = main.scrollTop;
+    renderAll();
+    main.scrollTop = scrollY;
+  }
+
+  function cancel() {
+    if (committed) return;
+    committed = true;
+    cell.innerHTML = origHTML;
+  }
+
+  sel.addEventListener('change', commit);
+  sel.addEventListener('blur',   () => setTimeout(cancel, 80));
+  sel.addEventListener('keydown', ev => {
+    if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); cancel(); }
+    if (ev.key === 'Enter')  { ev.preventDefault(); commit(); }
+  });
+}
+
+// ═══════════════════════════════════════════════════════
 //  EDIT ARTIFACT MODAL
 // ═══════════════════════════════════════════════════════
 function openEdit(artId) {
@@ -1378,7 +1448,6 @@ function openEdit(artId) {
   document.getElementById('editSub').textContent   = a.folder;
   document.getElementById('eStatus').value  = e.status || 'Not Started';
   document.getElementById('eDate').value    = e.lastUpdated || '';
-  document.getElementById('eOwner').value   = e.owner || '';
   document.getElementById('eNotes').value   = e.notes || '';
   document.getElementById('eCadInfo').innerHTML = `<strong>Cadence:</strong> ${esc(a.cadence)} &nbsp;·&nbsp; <strong>Applies to:</strong> ${a.at.join(', ')}`;
   document.getElementById('editOverlay').classList.add('open');
@@ -1396,7 +1465,6 @@ function saveEdit() {
   S.projects[pid].tracker[editingArtId] = {
     status:      document.getElementById('eStatus').value,
     lastUpdated: document.getElementById('eDate').value || today(),
-    owner:       document.getElementById('eOwner').value.trim(),
     notes:       document.getElementById('eNotes').value.trim(),
   };
   save(); closeEdit(); renderAll();
