@@ -1077,10 +1077,18 @@ function stalenessDetails(pid, artId) {
 // Returns the health value for scoring — same as health(effectiveStatus) but
 // treats due-soon items as amber so they don't inflate green counts.
 function effectiveHealth(pid, artId) {
-  const h = health(effectiveStatus(pid, artId));
-  if (h === 'green') {
-    if (stalenessDetails(pid, artId).dueSoon) return 'amber';
+  const effS = effectiveStatus(pid, artId);
+  // In Progress with cadence satisfied (date is within window) → treat as Current
+  if (effS === 'In Progress') {
+    const e    = projectEntry(pid, artId);
+    const days = cadenceDays(effectiveCadence(pid, artId));
+    if (days !== null && e.lastUpdated) {
+      const elapsed = Math.floor((Date.now() - new Date(e.lastUpdated).getTime()) / 86400000);
+      if (elapsed <= days) return 'green';
+    }
   }
+  const h = health(effS);
+  if (h === 'green' && stalenessDetails(pid, artId).dueSoon) return 'amber';
   return h;
 }
 
@@ -1604,7 +1612,7 @@ function renderProjectDashboard(pid) {
     const fr  = fas.filter(a => effectiveHealth(pid,a.id)==='red').length;
     const ft  = fas.length;
     return { f, fg, fa, fr, ft, pct: ft>0?Math.round(fg/ft*100):0 };
-  }).filter(x => x.ft>0).sort((a,b) => a.pct-b.pct);
+  }).filter(x => x.ft>0).sort((a,b) => FOLDERS.indexOf(a.f) - FOLDERS.indexOf(b.f));
 
   const redItems   = app.filter(a => effectiveHealth(pid,a.id)==='red');
   const amberItems = app.filter(a => effectiveHealth(pid,a.id)==='amber');
