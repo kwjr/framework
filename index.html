@@ -290,6 +290,46 @@
     .h-r { background:var(--red-bg); color:var(--red); }
     .h-f  { background:rgba(139,92,246,.12); color:#8b5cf6; }
     .h-na { background:var(--surface-2); color:var(--text-d); border:1px solid var(--border); }
+    .h-ds { background:rgba(245,158,11,.08); color:var(--amber); border:1px solid rgba(245,158,11,.2); }
+
+    /* phase bar */
+    .phase-bar { padding:6px 18px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:2px; overflow-x:auto; flex-shrink:0; }
+    .phase-bar-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--text-d); margin-right:8px; flex-shrink:0; }
+    .phase-sep { color:var(--text-d); font-size:10px; margin:0 3px; flex-shrink:0; }
+    .phase-step { display:flex; align-items:center; gap:5px; padding:3px 9px 3px 4px; border-radius:20px; white-space:nowrap; font-size:11px; font-weight:500; flex-shrink:0; }
+    .phase-num { width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; background:var(--border); color:var(--text-d); flex-shrink:0; }
+    .phase-check { font-size:10px; margin-left:1px; font-weight:600; }
+    .phase-step.past      { color:var(--text-m); }
+    .phase-step.past .phase-num { background:var(--border-l); color:var(--text-m); }
+    .phase-step.past-done { color:var(--green); }
+    .phase-step.past-done .phase-num { background:var(--green); color:#fff; }
+    .phase-step.past-warn { color:var(--amber); }
+    .phase-step.past-warn .phase-num { background:var(--amber); color:#fff; }
+    .phase-step.current { color:var(--accent); font-weight:700; background:var(--accent-dim); }
+    .phase-step.current .phase-num { background:var(--accent); color:#fff; }
+    .phase-step.future { opacity:.4; }
+    /* phase-aware folder header left bar */
+    .folder-header.ph-current   { border-left:3px solid var(--accent); padding-left:15px; }
+    .folder-header.ph-past-done { border-left:3px solid var(--green);  padding-left:15px; }
+    .folder-header.ph-past-warn { border-left:3px solid var(--amber);  padding-left:15px; }
+    /* artifact history in edit modal */
+    .art-history-wrap { margin-top:10px; padding:10px 12px; background:var(--surface-2); border-radius:var(--radius-s); }
+    .art-history-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--text-d); margin-bottom:8px; }
+    .ah-item { display:flex; align-items:baseline; gap:8px; padding:4px 0; border-bottom:1px solid var(--border); }
+    .ah-item:last-child { border-bottom:none; padding-bottom:0; }
+    .ah-ts { font-size:11px; color:var(--text-d); white-space:nowrap; flex-shrink:0; min-width:58px; }
+    .ah-change { font-size:12px; color:var(--text-m); flex:1; }
+    .ah-from { color:var(--text-d); text-decoration:line-through; }
+    .ah-to { color:var(--text); font-weight:500; }
+    /* activity feed in dashboard */
+    .activity-feed { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+    .activity-feed-title { font-size:13px; font-weight:600; padding:13px 17px; border-bottom:1px solid var(--border); }
+    .af-item { display:flex; align-items:baseline; gap:10px; padding:8px 17px; border-bottom:1px solid var(--border); font-size:12px; }
+    .af-item:last-child { border-bottom:none; }
+    .af-ts { color:var(--text-d); white-space:nowrap; flex-shrink:0; min-width:64px; }
+    .af-art { color:var(--accent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px; flex-shrink:0; }
+    .af-detail { color:var(--text-m); flex:1; }
+    .af-project { color:var(--text-d); font-size:11px; white-space:nowrap; flex-shrink:0; }
 
     .badge {
       font-size: 10px; font-weight: 600; padding: 2px 7px;
@@ -418,6 +458,7 @@
     .fgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
     .ftarea { width: 100%; padding: 8px 11px; resize: vertical; min-height: 68px; }
     .fcadence { padding: 10px 12px; background: var(--surface-2); border-radius: var(--radius-s); font-size: 12px; color: var(--text-m); }
+    .auto-stale-notice { font-size: 11px; color: var(--amber); background: var(--amber-bg); border: 1px solid rgba(245,158,11,.2); border-radius: var(--radius-s); padding: 7px 10px; margin-top: 5px; }
 
     .btn {
       font-family: var(--font); font-size: 13px; font-weight: 600;
@@ -530,6 +571,8 @@
         </button>
         <button class="proj-new-btn" id="newProjBtn">+ New Project</button>
       </div>
+      <!-- Phase Bar -->
+      <div id="phaseBar" class="phase-bar" style="display:none"></div>
       <!-- Filter Toolbar -->
       <div class="toolbar">
         <div class="search-wrap">
@@ -549,6 +592,7 @@
           <option value="red">🔴 Red</option>
           <option value="future">🟣 Future</option>
           <option value="na">⚪ Not Applicable</option>
+          <option value="due-soon">⏰ Due Soon</option>
         </select>
         <select class="filter-select" id="tFolder"><option value="">All Folders</option></select>
         <span class="count-label" id="cLabel"></span>
@@ -639,10 +683,19 @@
         </div>
       </div>
       <div class="form-group">
+        <label class="flabel">Cadence</label>
+        <select class="fselect filter-select" id="eCadence"></select>
+        <div class="auto-stale-notice" id="eAutoStaleNote" style="display:none">⏰ Showing as <strong>Stale</strong> — cadence not met since last update. Saving a new date will clear it.</div>
+      </div>
+      <div class="form-group">
         <label class="flabel">Notes</label>
         <textarea class="ftarea" id="eNotes" placeholder="Optional notes…"></textarea>
       </div>
       <div class="fcadence" id="eCadInfo"></div>
+      <div id="eHistoryWrap" class="art-history-wrap" style="display:none">
+        <div class="art-history-title">Activity Log</div>
+        <div id="eHistoryList"></div>
+      </div>
     </div>
     <div class="mfoot">
       <button class="btn btn-g" id="cancelEdit">Cancel</button>
@@ -694,6 +747,19 @@
         <div class="form-group">
           <label class="flabel">Project Manager</label>
           <input type="text" class="finput" id="pPM" placeholder="Name">
+        </div>
+        <div class="form-group">
+          <label class="flabel">Current Phase</label>
+          <select class="fselect filter-select" id="pPhase">
+            <option value="">Not set</option>
+            <option value="1">1 — Initiation</option>
+            <option value="2">2 — Discovery</option>
+            <option value="3">3 — Implementation</option>
+            <option value="4">4 — Testing</option>
+            <option value="5">5 — Go-Live</option>
+            <option value="6">6 — Closure / Complete</option>
+          </select>
+          <p style="font-size:11px;color:var(--text-m);margin-top:5px">Setting a phase promotes Future artifacts in that phase to Not Started and marks earlier-phase items as Stale.</p>
         </div>
       </div>
       <div class="ssec" id="projDangerZone" style="display:none;">
@@ -930,7 +996,7 @@ function activeProject() { return S.activeProjectId ? getProject(S.activeProject
 
 function projectEntry(pid, artId) {
   const p = getProject(pid);
-  return (p && p.tracker && p.tracker[artId]) || { status:'Not Started', lastUpdated:'', url:'', notes:'' };
+  return (p && p.tracker && p.tracker[artId]) || { status:'Not Started', lastUpdated:'', url:'', cadence:'', notes:'' };
 }
 
 function projectApplies(pid, art) {
@@ -942,6 +1008,225 @@ function projectApplies(pid, art) {
 // Active project shortcuts used by tracker
 function entry(artId) { return projectEntry(S.activeProjectId, artId); }
 function applies(art) { return projectApplies(S.activeProjectId, art); }
+
+// ═══════════════════════════════════════════════════════
+//  PHASES
+// ═══════════════════════════════════════════════════════
+const PHASES = [
+  { num:1, label:'Initiation',     folder:'01' },
+  { num:2, label:'Discovery',      folder:'02' },
+  { num:3, label:'Implementation', folder:'03' },
+  { num:4, label:'Testing',        folder:'04' },
+  { num:5, label:'Go-Live',        folder:'05' },
+  { num:6, label:'Closure',        folder:'06' },
+];
+
+// Returns 1–6 if folder belongs to a phase, null if always-active.
+function folderPhase(folder) {
+  const m = folder.match(/^0([1-6]) -/);
+  return m ? parseInt(m[1]) : null;
+}
+
+// Compute per-step info for the phase progress bar.
+// Uses stored status (not effectiveStatus) to avoid circular dependency.
+function phaseStepInfo(pid, phaseNum) {
+  const phArts = ARTS.filter(a => folderPhase(a.folder) === phaseNum && projectApplies(pid, a));
+  if (!phArts.length) return { pct:0, done:0, total:0, hasRed:false };
+  const done = phArts.filter(a => ['Complete','Current','N/A'].includes(projectEntry(pid, a.id).status || 'Not Started')).length;
+  const total = phArts.length;
+  // Check cadence-based stale only (not phase rule) to avoid circularity
+  const hasRed = phArts.some(a => {
+    const e = projectEntry(pid, a.id);
+    const s = e.status || 'Not Started';
+    if (s === 'Stale') return true;
+    if (['N/A','Future','Not Started','Complete','Current'].includes(s)) return false;
+    if (!e.lastUpdated) return false;
+    const days = cadenceDays(effectiveCadence(pid, a.id));
+    if (!days) return false;
+    return Math.floor((Date.now() - new Date(e.lastUpdated).getTime()) / 86400000) > days;
+  });
+  return { pct: Math.round(done / total * 100), done, total, hasRed };
+}
+
+// ═══════════════════════════════════════════════════════
+//  STALENESS DETAILS
+// ═══════════════════════════════════════════════════════
+// Returns enrichment data for badge display (not used for scoring).
+function stalenessDetails(pid, artId) {
+  const e    = projectEntry(pid, artId);
+  const stored = e.status || 'Not Started';
+  // Check phase-past flag
+  const art = ARTS.find(a => a.id === artId);
+  const p   = getProject(pid);
+  if (art && p?.currentPhase) {
+    const fp = folderPhase(art.folder);
+    if (fp && fp < p.currentPhase && !['Complete','Current','N/A','Stale'].includes(stored)) {
+      return { overdueDays:0, dueSoon:false, phasePast:true };
+    }
+  }
+  if (['N/A','Future','Stale','Not Started'].includes(stored) || !e.lastUpdated)
+    return { overdueDays:0, dueSoon:false, phasePast:false };
+  const days = cadenceDays(effectiveCadence(pid, artId));
+  if (!days) return { overdueDays:0, dueSoon:false, phasePast:false };
+  const elapsed    = Math.floor((Date.now() - new Date(e.lastUpdated).getTime()) / 86400000);
+  const overdueDays = Math.max(0, elapsed - days);
+  const dueSoon    = overdueDays === 0 && elapsed > 0 && (elapsed / days) >= 0.8;
+  return { overdueDays, dueSoon, phasePast:false };
+}
+
+// Returns the health value for scoring — same as health(effectiveStatus) but
+// treats due-soon items as amber so they don't inflate green counts.
+function effectiveHealth(pid, artId) {
+  const h = health(effectiveStatus(pid, artId));
+  if (h === 'green') {
+    if (stalenessDetails(pid, artId).dueSoon) return 'amber';
+  }
+  return h;
+}
+
+// ═══════════════════════════════════════════════════════
+//  ACTIVITY LOG
+// ═══════════════════════════════════════════════════════
+function logChange(pid, artId, changes) {
+  const p = getProject(pid);
+  if (!p) return;
+  if (!p.history) p.history = [];
+  const art = artId ? ARTS.find(a => a.id === artId) : null;
+  const ts  = new Date().toISOString();
+  changes.forEach(ch => {
+    if (ch.from === ch.to) return;
+    p.history.unshift({
+      ts, artId: artId||null,
+      artName: art?.name || (artId ? '' : '(Project)'),
+      field: ch.field, from: ch.from||'', to: ch.to||''
+    });
+  });
+  if (p.history.length > 500) p.history.length = 500;
+}
+
+function fmtTs(ts) {
+  const d = new Date(ts);
+  const diff = Math.floor((Date.now() - d.getTime()) / 86400000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  if (diff < 7)   return `${diff}d ago`;
+  return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+}
+
+// ═══════════════════════════════════════════════════════
+//  PHASE BAR RENDERER
+// ═══════════════════════════════════════════════════════
+function renderPhaseBar(pid) {
+  const bar = document.getElementById('phaseBar');
+  if (!bar) return;
+  const p = getProject(pid);
+  if (!p) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  const cur = p.currentPhase || 0;
+
+  let html = `<span class="phase-bar-label">Phase</span>`;
+  PHASES.forEach((ph, i) => {
+    const { pct, done, total, hasRed } = phaseStepInfo(pid, ph.num);
+    let cls = 'future';
+    let check = '';
+    if (ph.num < cur) {
+      cls = hasRed ? 'past-warn' : (pct === 100 ? 'past-done' : 'past');
+      check = pct === 100 ? '✓' : (hasRed ? '!' : `${pct}%`);
+    } else if (ph.num === cur) {
+      cls = 'current';
+      check = total > 0 ? `${done}/${total}` : '';
+    }
+    const sep = i > 0 ? '<span class="phase-sep">›</span>' : '';
+    html += `${sep}<div class="phase-step ${cls}">
+      <span class="phase-num">${ph.num}</span>
+      <span class="phase-lbl">${ph.label}${check?`<span class="phase-check"> ${check}</span>`:''}</span>
+    </div>`;
+  });
+
+  if (!cur) html += `<span style="font-size:11px;color:var(--text-d);margin-left:10px;">— <button class="link-btn" onclick="openEditProject('${esc(pid)}')">set phase</button></span>`;
+  bar.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════
+//  ARTIFACT HISTORY RENDERER (edit modal)
+// ═══════════════════════════════════════════════════════
+function renderArtHistory(pid, artId) {
+  const wrap = document.getElementById('eHistoryWrap');
+  const list = document.getElementById('eHistoryList');
+  if (!wrap || !list) return;
+  const p = getProject(pid);
+  const entries = (p?.history || []).filter(e => e.artId === artId).slice(0, 10);
+  if (!entries.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  list.innerHTML = entries.map(e =>
+    `<div class="ah-item">
+      <span class="ah-ts">${fmtTs(e.ts)}</span>
+      <span class="ah-change">${esc(e.field)}: <span class="ah-from">${esc(e.from||'—')}</span> → <span class="ah-to">${esc(e.to||'—')}</span></span>
+    </div>`
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+//  CADENCE & AUTO-STALE
+// ═══════════════════════════════════════════════════════
+const CADENCE_OPTIONS = [
+  { value:'Daily',         label:'Daily',              days:1   },
+  { value:'Weekly',        label:'Weekly',             days:7   },
+  { value:'Biweekly',      label:'Biweekly',           days:14  },
+  { value:'Monthly',       label:'Monthly',            days:30  },
+  { value:'Quarterly',     label:'Quarterly',          days:90  },
+  { value:'Per Sprint',    label:'Per Sprint (2 wk)',  days:14  },
+  { value:'Phase Gate',    label:'Phase Gate',         days:null},
+  { value:'One-time',      label:'One-time',           days:null},
+  { value:'As-needed',     label:'As-needed',          days:null},
+  { value:'Event-driven',  label:'Event-driven',       days:null},
+];
+
+// Map a cadence string (default or override) to a staleness threshold in days.
+// Returns null → no automatic staleness for this cadence.
+function cadenceDays(cadence) {
+  if (!cadence) return null;
+  const c = cadence.toLowerCase();
+  if (c.includes('daily'))                                             return 1;
+  if (c.includes('biweekly'))                                         return 14;
+  if (c.includes('per sprint') || c.includes('sprint'))               return 14;
+  if (c.includes('weekly'))                                           return 7;
+  if (c.includes('quarterly'))                                        return 90;
+  if (c.includes('monthly') || c.includes('bimonthly'))               return 30;
+  // One-time, phase gate, as-needed, event-driven, per-xxx → never auto-stale
+  return null;
+}
+
+// Resolve the effective cadence string for an artifact on a project.
+// Returns the per-project override if set, otherwise the standard ARTS cadence.
+function effectiveCadence(pid, artId) {
+  const e   = projectEntry(pid, artId);
+  const art = ARTS.find(a => a.id === artId);
+  return (e.cadence && e.cadence !== '') ? e.cadence : (art ? art.cadence : '');
+}
+
+// Compute the display/scoring status for an artifact, applying auto-stale when
+// the cadence threshold has elapsed since lastUpdated.
+// Statuses that are NEVER auto-staled: N/A, Future, Stale, Not Started.
+function effectiveStatus(pid, artId) {
+  const e      = projectEntry(pid, artId);
+  const stored = e.status || 'Not Started';
+  if (['N/A','Future'].includes(stored)) return stored;
+  // Phase-past rule
+  const _art = ARTS.find(a => a.id === artId);
+  const _p   = getProject(pid);
+  if (_art && _p && _p.currentPhase) {
+    const fp = folderPhase(_art.folder);
+    if (fp && fp < _p.currentPhase && !['Complete','Current','N/A','Stale'].includes(stored))
+      return 'Stale';
+  }
+  if (stored === 'Stale' || stored === 'Not Started') return stored;
+  if (!e.lastUpdated) return stored;
+  const days = cadenceDays(effectiveCadence(pid, artId));
+  if (!days) return stored;
+  const elapsed = Math.floor((Date.now() - new Date(e.lastUpdated).getTime()) / 86400000);
+  return elapsed > days ? 'Stale' : stored;
+}
 
 function health(status) {
   if (status === 'Future') return 'future';
@@ -955,13 +1240,13 @@ function projectHealth(pid) {
   const p = getProject(pid);
   if (!p) return { total:0, g:0, am:0, r:0, fu:0, pct:0 };
   const app = ARTS.filter(a => projectApplies(pid, a));
-  const fu   = app.filter(a => health(projectEntry(pid, a.id).status) === 'future').length;
-  const na   = app.filter(a => health(projectEntry(pid, a.id).status) === 'na').length;
-  const scored = app.filter(a => !['future','na'].includes(health(projectEntry(pid, a.id).status)));
+  const fu   = app.filter(a => effectiveHealth(pid, a.id) === 'future').length;
+  const na   = app.filter(a => effectiveHealth(pid, a.id) === 'na').length;
+  const scored = app.filter(a => !['future','na'].includes(effectiveHealth(pid, a.id)));
   const total = scored.length;
-  const g  = scored.filter(a => health(projectEntry(pid, a.id).status) === 'green').length;
-  const am = scored.filter(a => health(projectEntry(pid, a.id).status) === 'amber').length;
-  const r  = scored.filter(a => health(projectEntry(pid, a.id).status) === 'red').length;
+  const g  = scored.filter(a => effectiveHealth(pid, a.id) === 'green').length;
+  const am = scored.filter(a => effectiveHealth(pid, a.id) === 'amber').length;
+  const r  = scored.filter(a => effectiveHealth(pid, a.id) === 'red').length;
   const pct = total > 0 ? Math.round(g / total * 100) : 0;
   return { total, g, am, r, fu, na, pct };
 }
@@ -974,10 +1259,16 @@ function sbadge(status) {
   return `<span class="sbadge ${map[status]||'s-ns'}">${esc(status||'Not Started')}</span>`;
 }
 
-function hbadge(h) {
+function hbadge(h, sinfo) {
   if (h === 'future') return `<span class="hbadge h-f">◌ Future Stage</span>`;
   if (h === 'na')     return `<span class="hbadge h-na">— Not Applicable</span>`;
-  const lbl = h==='green'?'● Current':h==='red'?'● Action Needed':'● Attention';
+  if (h === 'amber' && sinfo?.dueSoon) return `<span class="hbadge h-ds">⏰ Due Soon</span>`;
+  if (h === 'red') {
+    const suffix = sinfo?.phasePast ? ' · Phase Past'
+                 : sinfo?.overdueDays > 0 ? ` · +${sinfo.overdueDays}d` : '';
+    return `<span class="hbadge h-r">● Action Needed${suffix}</span>`;
+  }
+  const lbl = h==='green'?'● Current':'● Attention';
   return `<span class="hbadge h-${h[0]}">${lbl}</span>`;
 }
 
@@ -1034,6 +1325,7 @@ function renderTracker() {
 
   const proj = activeProject();
   const needsSetup = !proj.type || !proj.billing;
+  renderPhaseBar(S.activeProjectId);
 
   const q      = S.ui.tSearch.toLowerCase();
   const fStatus = S.ui.tStatus;
@@ -1058,22 +1350,36 @@ function renderTracker() {
     const arts = ARTS.filter(a => {
       if (a.folder !== folder) return false;
       if (q && !a.name.toLowerCase().includes(q)) return false;
-      const e = entry(a.id);
-      if (fStatus && e.status !== fStatus) return false;
-      if (fHealth && health(e.status) !== fHealth) return false;
+      const e    = entry(a.id);
+      const effS = effectiveStatus(S.activeProjectId, a.id);
+      if (fStatus && effS !== fStatus) return false;
+      const _eh = effectiveHealth(S.activeProjectId, a.id);
+      const _ds = _eh === "amber" && stalenessDetails(S.activeProjectId, a.id).dueSoon;
+      if (fHealth === "due-soon" && !_ds) return false;
+      if (fHealth && fHealth !== "due-soon" && _eh !== fHealth) return false;
       return true;
     });
     if (!arts.length) return;
     total += arts.length;
 
     const allArts = ARTS.filter(a => a.folder === folder);
-    const fg = allArts.filter(a => health(entry(a.id).status)==='green').length;
-    const fa = allArts.filter(a => health(entry(a.id).status)==='amber').length;
-    const fr = allArts.filter(a => health(entry(a.id).status)==='red').length;
+    const fg = allArts.filter(a => health(effectiveStatus(S.activeProjectId, a.id))==='green').length;
+    const fa = allArts.filter(a => health(effectiveStatus(S.activeProjectId, a.id))==='amber').length;
+    const fr = allArts.filter(a => health(effectiveStatus(S.activeProjectId, a.id))==='red').length;
 
     const col = S.ui.collapsed[folder];
+    const _fp = folderPhase(folder);
+    const _cur = proj.currentPhase || 0;
+    let _phCls = "";
+    if (_fp && _cur) {
+      if (_fp === _cur) _phCls = "ph-current";
+      else if (_fp < _cur) {
+        const _phHasRed = ARTS.filter(a=>a.folder===folder).some(a=>effectiveHealth(S.activeProjectId,a.id)==='red');
+        _phCls = _phHasRed ? "ph-past-warn" : "ph-past-done";
+      }
+    }
     html += `<div class="folder-group">
-      <div class="folder-header" onclick="toggleFolder('${esc(folder)}')">
+      <div class="folder-header ${_phCls}" onclick="toggleFolder('${esc(folder)}')">
         <svg class="folder-chevron ${col?'col':''}" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
         <span class="folder-name">${esc(folder)}</span>
         <div class="folder-stats">
@@ -1091,20 +1397,23 @@ function renderTracker() {
         </tr></thead><tbody>`;
 
     arts.forEach(a => {
-      const e  = entry(a.id);
-      const h  = health(e.status);
-      const app = applies(a);
+      const e      = entry(a.id);
+      const effS   = effectiveStatus(S.activeProjectId, a.id);
+      const h      = effectiveHealth(S.activeProjectId, a.id);
+      const sinfo  = stalenessDetails(S.activeProjectId, a.id);
+      const app    = applies(a);
+      const effCad = effectiveCadence(S.activeProjectId, a.id);
       if (app) visible++;
       html += `<tr class="${app?'':'row-na'}" onclick="openEdit(${a.id})">
         <td class="cell-num">${a.id}</td>
         <td>
           <span class="cell-name">${esc(a.name)}</span>${!app?'<span class="cell-na-hint">(not applicable)</span>':''}
-          <span class="cell-cad">${esc(a.cadence)}</span>
+          <span class="cell-cad">${esc(effCad)}</span>
         </td>
         <td style="text-align:center">${e.url&&isValidUrl(e.url)?`<a href="${esc(e.url)}" target="_blank" rel="noopener" class="cell-link" onclick="event.stopPropagation()" title="Open: ${esc(e.url)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>`:'<span class="cell-link-empty"></span>'}</td>
-        <td class="status-cell" onclick="statusClick(event,${a.id})" title="Click to change status">${sbadge(e.status)}</td>
+        <td class="status-cell" onclick="statusClick(event,${a.id})" title="Click to change status">${sbadge(effS)}</td>
         <td class="cell-date">${fmtDate(e.lastUpdated)}</td>
-        <td>${hbadge(h)}</td>
+        <td>${hbadge(h, sinfo)}</td>
       </tr>`;
     });
 
@@ -1170,11 +1479,11 @@ function renderPortfolioDashboard() {
 
   // All red items across portfolio
   const redItems = projs.flatMap(p =>
-    ARTS.filter(a => projectApplies(p.id, a) && health(projectEntry(p.id, a.id).status) === 'red')
+    ARTS.filter(a => projectApplies(p.id, a) && effectiveHealth(p.id, a.id) === 'red')
         .map(a => ({ art:a, proj:p }))
   );
   const amberItems = projs.flatMap(p =>
-    ARTS.filter(a => projectApplies(p.id, a) && health(projectEntry(p.id, a.id).status) === 'amber')
+    ARTS.filter(a => projectApplies(p.id, a) && effectiveHealth(p.id, a.id) === 'amber')
         .map(a => ({ art:a, proj:p }))
   );
 
@@ -1230,7 +1539,7 @@ function renderPortfolioDashboard() {
         return `<div class="proj-list-row" onclick="drillToProject('${esc(p.id)}')">
           <div style="flex:1;min-width:0">
             <div class="plr-name">${esc(p.name||'Unnamed Project')}</div>
-            <div class="plr-meta">${p.type?esc(p.type):'—'}${p.billing?' · '+esc(p.billing):''} · ${h.total} artifacts</div>
+            <div class="plr-meta">${p.type?esc(p.type):'—'}${p.billing?' · '+esc(p.billing):''}${p.currentPhase?' · Phase '+p.currentPhase:''} · ${h.total} scored</div>
           </div>
           <div class="plr-minibar">
             <div class="plr-mb-g" style="width:${gw2}%"></div>
@@ -1276,29 +1585,29 @@ function renderProjectDashboard(pid) {
   if (!p) { renderPortfolioDashboard(); return; }
 
   const app = ARTS.filter(a => projectApplies(pid, a));
-  const fu   = app.filter(a => health(projectEntry(pid, a.id).status)==='future').length;
-  const na   = app.filter(a => health(projectEntry(pid, a.id).status)==='na').length;
-  const scored = app.filter(a => !['future','na'].includes(health(projectEntry(pid, a.id).status)));
+  const fu   = app.filter(a => effectiveHealth(pid, a.id)==='future').length;
+  const na   = app.filter(a => effectiveHealth(pid, a.id)==='na').length;
+  const scored = app.filter(a => !['future','na'].includes(effectiveHealth(pid, a.id)));
   const total = scored.length;
-  const g  = scored.filter(a => health(projectEntry(pid, a.id).status)==='green').length;
-  const am = scored.filter(a => health(projectEntry(pid, a.id).status)==='amber').length;
-  const r  = scored.filter(a => health(projectEntry(pid, a.id).status)==='red').length;
+  const g  = scored.filter(a => effectiveHealth(pid, a.id)==='green').length;
+  const am = scored.filter(a => effectiveHealth(pid, a.id)==='amber').length;
+  const r  = scored.filter(a => effectiveHealth(pid, a.id)==='red').length;
   const pct = total>0?Math.round(g/total*100):0;
   const gw  = total>0?(g/total*100).toFixed(1):0;
   const aw  = total>0?(am/total*100).toFixed(1):0;
   const rw  = total>0?(r/total*100).toFixed(1):0;
 
   const folderStats = FOLDERS.map(f => {
-    const fas = ARTS.filter(a => a.folder===f && projectApplies(pid,a) && !['future','na'].includes(health(projectEntry(pid,a.id).status)));
-    const fg  = fas.filter(a => health(projectEntry(pid,a.id).status)==='green').length;
-    const fa  = fas.filter(a => health(projectEntry(pid,a.id).status)==='amber').length;
-    const fr  = fas.filter(a => health(projectEntry(pid,a.id).status)==='red').length;
+    const fas = ARTS.filter(a => a.folder===f && projectApplies(pid,a) && !['future','na'].includes(effectiveHealth(pid,a.id)));
+    const fg  = fas.filter(a => effectiveHealth(pid,a.id)==='green').length;
+    const fa  = fas.filter(a => effectiveHealth(pid,a.id)==='amber').length;
+    const fr  = fas.filter(a => effectiveHealth(pid,a.id)==='red').length;
     const ft  = fas.length;
     return { f, fg, fa, fr, ft, pct: ft>0?Math.round(fg/ft*100):0 };
   }).filter(x => x.ft>0).sort((a,b) => a.pct-b.pct);
 
-  const redItems   = app.filter(a => health(projectEntry(pid,a.id).status)==='red');
-  const amberItems = app.filter(a => health(projectEntry(pid,a.id).status)==='amber');
+  const redItems   = app.filter(a => effectiveHealth(pid,a.id)==='red');
+  const amberItems = app.filter(a => effectiveHealth(pid,a.id)==='amber');
 
   let html = `
     <!-- Project Card -->
@@ -1310,6 +1619,7 @@ function renderProjectDashboard(pid) {
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:7px;">
             ${p.type?`<span class="badge badge-accent">${esc(p.type)}</span>`:''}
             ${p.billing?`<span class="badge">${esc(p.billing)}</span>`:''}
+            ${p.currentPhase?`<span class="badge" style="background:var(--accent-dim);color:var(--accent);border-color:transparent">Phase ${p.currentPhase} · ${PHASES.find(x=>x.num===p.currentPhase)?.label||''}</span>`:''}
             ${p.startDate?`<span class="badge">Started ${fmtDate(p.startDate)}</span>`:''}
             ${p.pm?`<span class="badge">PM: ${esc(p.pm)}</span>`:''}
           </div>
@@ -1383,7 +1693,19 @@ function renderProjectDashboard(pid) {
           + (amberItems.length>10?`<div class="alist-empty">+${amberItems.length-10} more</div>`:'')
           : '<div class="alist-empty">✓ All artifacts current</div>'}
       </div>
-    </div>`;
+    </div>
+    ${(() => {
+      const hist = (p.history||[]).slice(0,20);
+      if (!hist.length) return '';
+      return `<div class="activity-feed">
+        <div class="activity-feed-title">📋 Recent Activity</div>
+        ${hist.map(e => `<div class="af-item">
+          <span class="af-ts">${fmtTs(e.ts)}</span>
+          ${e.artId?`<span class="af-art" title="${esc(e.artName)}">${esc(e.artName)}</span>`:''}
+          <span class="af-detail">${esc(e.field)}: <span style="text-decoration:line-through;color:var(--text-d)">${esc(e.from||'—')}</span> → <strong>${esc(e.to||'—')}</strong></span>
+        </div>`).join('')}
+      </div>`;
+    })()} `;
 
   body.innerHTML = html;
 }
@@ -1480,12 +1802,13 @@ function statusClick(event, artId) {
     const pid = S.activeProjectId;
     if (!S.projects[pid].tracker) S.projects[pid].tracker = {};
     const existing = projectEntry(pid, artId);
+    const oldStatus = existing.status || 'Not Started';
     S.projects[pid].tracker[artId] = {
       ...existing,
       status: newStatus,
       lastUpdated: today(),
-      // url + notes preserved via spread
     };
+    if (oldStatus !== newStatus) logChange(pid, artId, [{ field:'Status', from:oldStatus, to:newStatus }]);
     save();
     // Preserve scroll position through re-render
     const main = document.querySelector('main');
@@ -1522,8 +1845,19 @@ function openEdit(artId) {
   document.getElementById('eDate').value    = e.lastUpdated || '';
   document.getElementById('eUrl').value     = e.url || '';
   updateUrlBtn();
+  // Cadence dropdown — default option shows the standard cadence
+  const _stdCad = a.cadence || '';
+  const _cadSel = document.getElementById('eCadence');
+  _cadSel.innerHTML = `<option value="">Default: ${esc(_stdCad)}</option>` +
+    CADENCE_OPTIONS.map(o => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
+  _cadSel.value = e.cadence || '';
+  // Auto-stale notice
+  const _effS = effectiveStatus(S.activeProjectId, artId);
+  const _notice = document.getElementById('eAutoStaleNote');
+  if (_notice) _notice.style.display = (_effS === 'Stale' && (e.status||'Not Started') !== 'Stale') ? 'block' : 'none';
   document.getElementById('eNotes').value   = e.notes || '';
   document.getElementById('eCadInfo').innerHTML = `<strong>Cadence:</strong> ${esc(a.cadence)} &nbsp;·&nbsp; <strong>Applies to:</strong> ${a.at.join(', ')}`;
+  renderArtHistory(S.activeProjectId, artId);
   document.getElementById('editOverlay').classList.add('open');
 }
 
@@ -1536,12 +1870,27 @@ function saveEdit() {
   if (!editingArtId || !S.activeProjectId) return;
   const pid = S.activeProjectId;
   if (!S.projects[pid].tracker) S.projects[pid].tracker = {};
-  S.projects[pid].tracker[editingArtId] = {
+  const old = { ...projectEntry(pid, editingArtId) };
+  const newData = {
     status:      document.getElementById('eStatus').value,
     lastUpdated: document.getElementById('eDate').value || today(),
     url:         document.getElementById('eUrl').value.trim(),
+    cadence:     document.getElementById('eCadence').value,
     notes:       document.getElementById('eNotes').value.trim(),
   };
+  const changes = [];
+  if ((old.status||'Not Started') !== newData.status)
+    changes.push({ field:'Status', from:old.status||'Not Started', to:newData.status });
+  if ((old.lastUpdated||'') !== newData.lastUpdated)
+    changes.push({ field:'Last Updated', from:old.lastUpdated||'', to:newData.lastUpdated });
+  if ((old.url||'') !== newData.url)
+    changes.push({ field:'Link', from:old.url?'(set)':'(none)', to:newData.url?'(set)':'(none)' });
+  if ((old.cadence||'') !== newData.cadence)
+    changes.push({ field:'Cadence', from:old.cadence||'Default', to:newData.cadence||'Default' });
+  if ((old.notes||'') !== newData.notes)
+    changes.push({ field:'Notes', from:old.notes?'(updated)':'(empty)', to:newData.notes?'(updated)':'(empty)' });
+  if (changes.length) logChange(pid, editingArtId, changes);
+  S.projects[pid].tracker[editingArtId] = newData;
   save(); closeEdit(); renderAll();
 }
 
@@ -1557,6 +1906,7 @@ function openNewProject() {
   document.getElementById('pBilling').value = '';
   document.getElementById('pStart').value   = '';
   document.getElementById('pPM').value      = '';
+  document.getElementById('pPhase').value   = '';
   document.getElementById('projDangerZone').style.display = 'none';
   document.getElementById('projectOverlay').classList.add('open');
   setTimeout(() => document.getElementById('pName').focus(), 50);
@@ -1573,6 +1923,7 @@ function openEditProject(pid) {
   document.getElementById('pBilling').value = p.billing || '';
   document.getElementById('pStart').value   = p.startDate || '';
   document.getElementById('pPM').value      = p.pm      || '';
+  document.getElementById('pPhase').value   = p.currentPhase ? String(p.currentPhase) : '';
   document.getElementById('projDangerZone').style.display = '';
   document.getElementById('projectOverlay').classList.add('open');
 }
@@ -1595,6 +1946,7 @@ function initProjectTracker(pid) {
       status:      projectApplies(pid, a) ? 'Future' : 'N/A',
       lastUpdated: td,
       url:         '',
+      cadence:     '',
       notes:       '',
     };
   });
@@ -1606,16 +1958,39 @@ function saveProjModal() {
   const billing = document.getElementById('pBilling').value;
   const startDate = document.getElementById('pStart').value;
   const pm      = document.getElementById('pPM').value.trim();
+  const phase   = parseInt(document.getElementById('pPhase').value) || null;
 
   if (!name) { document.getElementById('pName').focus(); return; }
 
   if (editingProjId) {
-    // Edit existing
-    Object.assign(S.projects[editingProjId], { name, type, billing, startDate, pm });
+    const p = S.projects[editingProjId];
+    const oldPhase = p.currentPhase || null;
+    Object.assign(p, { name, type, billing, startDate, pm, currentPhase: phase });
+    if (!p.history) p.history = [];
+    // On phase change: log it, then promote Future → Not Started in the new phase folder
+    if (phase !== oldPhase) {
+      logChange(editingProjId, null, [{ field:'Phase',
+        from: oldPhase ? PHASES.find(x=>x.num===oldPhase)?.label || String(oldPhase) : 'None',
+        to:   phase    ? PHASES.find(x=>x.num===phase)?.label    || String(phase)    : 'None' }]);
+      if (phase) {
+        const ph = PHASES.find(x => x.num === phase);
+        if (ph) {
+          ARTS.forEach(a => {
+            if (!a.folder.startsWith(ph.folder)) return;
+            const e = projectEntry(editingProjId, a.id);
+            if (e.status === 'Future') {
+              if (!p.tracker) p.tracker = {};
+              p.tracker[a.id] = { ...e, status:'Not Started', lastUpdated:today() };
+              logChange(editingProjId, a.id, [{ field:'Status', from:'Future', to:'Not Started' }]);
+            }
+          });
+        }
+      }
+    }
   } else {
     // Create new
     const id = newId();
-    S.projects[id] = { id, name, type, billing, startDate, pm, createdAt: today(), tracker: {} };
+    S.projects[id] = { id, name, type, billing, startDate, pm, currentPhase: phase, createdAt: today(), tracker: {}, history: [] };
     S.activeProjectId = id;
     initProjectTracker(id);
   }
