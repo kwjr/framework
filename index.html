@@ -220,7 +220,31 @@
     .cell-num { font-size: 11px; color: var(--text-d); width: 36px; }
     .cell-name { font-size: 13px; font-weight: 500; }
     .cell-na-hint { font-size: 10px; color: var(--text-d); margin-left: 5px; }
+    .cell-cad { display: block; font-size: 11px; color: var(--text-d); margin-top: 2px; line-height: 1.3; }
+    .cell-link {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 26px; height: 26px; border-radius: var(--radius-s);
+      color: var(--accent); border: 1px solid rgba(59,158,255,.3);
+      background: var(--accent-dim);
+      transition: opacity .12s, background .12s;
+    }
+    .cell-link:hover { background: rgba(59,158,255,.25); border-color: rgba(59,158,255,.5); }
+    .cell-link svg { width: 12px; height: 12px; }
+    .cell-link-empty { width: 26px; height: 26px; display: inline-block; }
     .cell-date { font-size: 12px; color: var(--text-m); white-space: nowrap; }
+    /* url field in edit modal */
+    .url-row { display: flex; gap: 8px; align-items: center; }
+    .url-row .finput { flex: 1; min-width: 0; }
+    .url-open-btn {
+      width: 34px; height: 34px; border: 1px solid var(--border);
+      background: transparent; border-radius: var(--radius-s);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: var(--tr); flex-shrink: 0;
+    }
+    .url-open-btn svg { width: 15px; height: 15px; }
+    .url-open-btn.active { color: var(--accent); border-color: rgba(59,158,255,.4); background: var(--accent-dim); }
+    .url-open-btn.active:hover { background: rgba(59,158,255,.25); }
+    .url-open-btn:not(.active) { color: var(--text-d); pointer-events: none; opacity: .45; }
     /* status-cell: clickable badge, inline editor */
     .status-cell { position: relative; }
     .status-cell:hover .sbadge { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -264,7 +288,8 @@
     .h-g { background:var(--green-bg); color:var(--green); }
     .h-a { background:var(--amber-bg); color:var(--amber); }
     .h-r { background:var(--red-bg); color:var(--red); }
-    .h-f { background:rgba(139,92,246,.12); color:#8b5cf6; }
+    .h-f  { background:rgba(139,92,246,.12); color:#8b5cf6; }
+    .h-na { background:var(--surface-2); color:var(--text-d); border:1px solid var(--border); }
 
     .badge {
       font-size: 10px; font-weight: 600; padding: 2px 7px;
@@ -523,6 +548,7 @@
           <option value="amber">🟡 Amber</option>
           <option value="red">🔴 Red</option>
           <option value="future">🟣 Future</option>
+          <option value="na">⚪ Not Applicable</option>
         </select>
         <select class="filter-select" id="tFolder"><option value="">All Folders</option></select>
         <span class="count-label" id="cLabel"></span>
@@ -598,6 +624,19 @@
       <div class="form-group">
         <label class="flabel">Last Updated</label>
         <input type="date" class="finput" id="eDate" style="max-width:180px">
+      </div>
+      <div class="form-group">
+        <label class="flabel">Artifact Link</label>
+        <div class="url-row">
+          <input type="text" class="finput" id="eUrl" placeholder="https://…" autocomplete="url" spellcheck="false">
+          <button class="url-open-btn" id="eUrlBtn" tabindex="-1" title="Open link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/>
+              <line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+          </button>
+        </div>
       </div>
       <div class="form-group">
         <label class="flabel">Notes</label>
@@ -891,7 +930,7 @@ function activeProject() { return S.activeProjectId ? getProject(S.activeProject
 
 function projectEntry(pid, artId) {
   const p = getProject(pid);
-  return (p && p.tracker && p.tracker[artId]) || { status:'Not Started', lastUpdated:'', owner:'', notes:'' };
+  return (p && p.tracker && p.tracker[artId]) || { status:'Not Started', lastUpdated:'', url:'', notes:'' };
 }
 
 function projectApplies(pid, art) {
@@ -906,7 +945,8 @@ function applies(art) { return projectApplies(S.activeProjectId, art); }
 
 function health(status) {
   if (status === 'Future') return 'future';
-  if (['Complete','Current','N/A'].includes(status)) return 'green';
+  if (status === 'N/A')    return 'na';
+  if (['Complete','Current'].includes(status)) return 'green';
   if (status === 'Stale') return 'red';
   return 'amber';
 }
@@ -916,13 +956,14 @@ function projectHealth(pid) {
   if (!p) return { total:0, g:0, am:0, r:0, fu:0, pct:0 };
   const app = ARTS.filter(a => projectApplies(pid, a));
   const fu   = app.filter(a => health(projectEntry(pid, a.id).status) === 'future').length;
-  const scored = app.filter(a => health(projectEntry(pid, a.id).status) !== 'future');
+  const na   = app.filter(a => health(projectEntry(pid, a.id).status) === 'na').length;
+  const scored = app.filter(a => !['future','na'].includes(health(projectEntry(pid, a.id).status)));
   const total = scored.length;
   const g  = scored.filter(a => health(projectEntry(pid, a.id).status) === 'green').length;
   const am = scored.filter(a => health(projectEntry(pid, a.id).status) === 'amber').length;
   const r  = scored.filter(a => health(projectEntry(pid, a.id).status) === 'red').length;
   const pct = total > 0 ? Math.round(g / total * 100) : 0;
-  return { total, g, am, r, fu, pct };
+  return { total, g, am, r, fu, na, pct };
 }
 
 function sbadge(status) {
@@ -935,6 +976,7 @@ function sbadge(status) {
 
 function hbadge(h) {
   if (h === 'future') return `<span class="hbadge h-f">◌ Future Stage</span>`;
+  if (h === 'na')     return `<span class="hbadge h-na">— Not Applicable</span>`;
   const lbl = h==='green'?'● Current':h==='red'?'● Action Needed':'● Attention';
   return `<span class="hbadge h-${h[0]}">${lbl}</span>`;
 }
@@ -1043,6 +1085,7 @@ function renderTracker() {
       <div class="folder-body ${col?'hidden':''}">
         <table><thead><tr>
           <th style="width:36px">#</th><th>Artifact</th>
+          <th style="width:36px"></th>
           <th style="width:145px">Status</th><th style="width:105px">Last Updated</th>
           <th style="width:130px">Health</th>
         </tr></thead><tbody>`;
@@ -1054,7 +1097,11 @@ function renderTracker() {
       if (app) visible++;
       html += `<tr class="${app?'':'row-na'}" onclick="openEdit(${a.id})">
         <td class="cell-num">${a.id}</td>
-        <td><span class="cell-name">${esc(a.name)}</span>${!app?'<span class="cell-na-hint">(not applicable)</span>':''}</td>
+        <td>
+          <span class="cell-name">${esc(a.name)}</span>${!app?'<span class="cell-na-hint">(not applicable)</span>':''}
+          <span class="cell-cad">${esc(a.cadence)}</span>
+        </td>
+        <td style="text-align:center">${e.url&&isValidUrl(e.url)?`<a href="${esc(e.url)}" target="_blank" rel="noopener" class="cell-link" onclick="event.stopPropagation()" title="Open: ${esc(e.url)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>`:'<span class="cell-link-empty"></span>'}</td>
         <td class="status-cell" onclick="statusClick(event,${a.id})" title="Click to change status">${sbadge(e.status)}</td>
         <td class="cell-date">${fmtDate(e.lastUpdated)}</td>
         <td>${hbadge(h)}</td>
@@ -1107,10 +1154,11 @@ function renderPortfolioDashboard() {
   const n = projs.length;
 
   // Aggregate across all projects (Future excluded from health)
-  let totalG=0, totalAm=0, totalR=0, totalAll=0, totalFu=0;
+  let totalG=0, totalAm=0, totalR=0, totalAll=0, totalFu=0, totalNa=0;
   const projStats = projs.map(p => {
     const h = projectHealth(p.id);
-    totalG  += h.g; totalAm += h.am; totalR += h.r; totalAll += h.total; totalFu += (h.fu||0);
+    totalG  += h.g; totalAm += h.am; totalR += h.r; totalAll += h.total;
+    totalFu += (h.fu||0); totalNa += (h.na||0);
     return { p, h };
   });
 
@@ -1229,7 +1277,8 @@ function renderProjectDashboard(pid) {
 
   const app = ARTS.filter(a => projectApplies(pid, a));
   const fu   = app.filter(a => health(projectEntry(pid, a.id).status)==='future').length;
-  const scored = app.filter(a => health(projectEntry(pid, a.id).status)!=='future');
+  const na   = app.filter(a => health(projectEntry(pid, a.id).status)==='na').length;
+  const scored = app.filter(a => !['future','na'].includes(health(projectEntry(pid, a.id).status)));
   const total = scored.length;
   const g  = scored.filter(a => health(projectEntry(pid, a.id).status)==='green').length;
   const am = scored.filter(a => health(projectEntry(pid, a.id).status)==='amber').length;
@@ -1240,7 +1289,7 @@ function renderProjectDashboard(pid) {
   const rw  = total>0?(r/total*100).toFixed(1):0;
 
   const folderStats = FOLDERS.map(f => {
-    const fas = ARTS.filter(a => a.folder===f && projectApplies(pid,a) && health(projectEntry(pid,a.id).status)!=='future');
+    const fas = ARTS.filter(a => a.folder===f && projectApplies(pid,a) && !['future','na'].includes(health(projectEntry(pid,a.id).status)));
     const fg  = fas.filter(a => health(projectEntry(pid,a.id).status)==='green').length;
     const fa  = fas.filter(a => health(projectEntry(pid,a.id).status)==='amber').length;
     const fr  = fas.filter(a => health(projectEntry(pid,a.id).status)==='red').length;
@@ -1373,6 +1422,28 @@ function populateFolderFilter() {
 }
 
 // ═══════════════════════════════════════════════════════
+//  URL HELPERS
+// ═══════════════════════════════════════════════════════
+function isValidUrl(url) {
+  if (!url) return false;
+  try { const u = new URL(url); return u.protocol === 'http:' || u.protocol === 'https:'; }
+  catch { return false; }
+}
+
+function updateUrlBtn() {
+  const url = (document.getElementById('eUrl')?.value || '').trim();
+  const btn = document.getElementById('eUrlBtn');
+  if (!btn) return;
+  if (isValidUrl(url)) {
+    btn.classList.add('active');
+    btn.onclick = () => window.open(url, '_blank', 'noopener');
+  } else {
+    btn.classList.remove('active');
+    btn.onclick = null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
 //  INLINE STATUS EDITOR
 // ═══════════════════════════════════════════════════════
 function statusClick(event, artId) {
@@ -1413,6 +1484,7 @@ function statusClick(event, artId) {
       ...existing,
       status: newStatus,
       lastUpdated: today(),
+      // url + notes preserved via spread
     };
     save();
     // Preserve scroll position through re-render
@@ -1448,6 +1520,8 @@ function openEdit(artId) {
   document.getElementById('editSub').textContent   = a.folder;
   document.getElementById('eStatus').value  = e.status || 'Not Started';
   document.getElementById('eDate').value    = e.lastUpdated || '';
+  document.getElementById('eUrl').value     = e.url || '';
+  updateUrlBtn();
   document.getElementById('eNotes').value   = e.notes || '';
   document.getElementById('eCadInfo').innerHTML = `<strong>Cadence:</strong> ${esc(a.cadence)} &nbsp;·&nbsp; <strong>Applies to:</strong> ${a.at.join(', ')}`;
   document.getElementById('editOverlay').classList.add('open');
@@ -1465,6 +1539,7 @@ function saveEdit() {
   S.projects[pid].tracker[editingArtId] = {
     status:      document.getElementById('eStatus').value,
     lastUpdated: document.getElementById('eDate').value || today(),
+    url:         document.getElementById('eUrl').value.trim(),
     notes:       document.getElementById('eNotes').value.trim(),
   };
   save(); closeEdit(); renderAll();
@@ -1507,6 +1582,24 @@ function closeProjModal() {
   editingProjId = null;
 }
 
+// ═══════════════════════════════════════════════════════
+//  PROJECT TRACKER INITIALISATION
+// ═══════════════════════════════════════════════════════
+function initProjectTracker(pid) {
+  const p = getProject(pid);
+  if (!p) return;
+  p.tracker = {};
+  const td = today();
+  ARTS.forEach(a => {
+    p.tracker[a.id] = {
+      status:      projectApplies(pid, a) ? 'Future' : 'N/A',
+      lastUpdated: td,
+      url:         '',
+      notes:       '',
+    };
+  });
+}
+
 function saveProjModal() {
   const name    = document.getElementById('pName').value.trim();
   const type    = document.getElementById('pType').value;
@@ -1524,6 +1617,7 @@ function saveProjModal() {
     const id = newId();
     S.projects[id] = { id, name, type, billing, startDate, pm, createdAt: today(), tracker: {} };
     S.activeProjectId = id;
+    initProjectTracker(id);
   }
   save(); closeProjModal(); renderAll();
 }
@@ -1701,6 +1795,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Auto-set date when status changes
+  document.getElementById('eUrl').addEventListener('input', updateUrlBtn);
   document.getElementById('eStatus').addEventListener('change', () => {
     if (!document.getElementById('eDate').value) document.getElementById('eDate').value = today();
   });
