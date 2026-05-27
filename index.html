@@ -3611,7 +3611,9 @@ let _qcUrgent = false, _qcImportant = true, _qcProjId = '';
 
 function openQuickCapture() {
   _qcUrgent = false; _qcImportant = true;
-  _qcProjId = (S.projects[0]||{}).id || 'admin';
+  // Pre-select the active project filter (fall back to first project)
+  _qcProjId = (S.filterProject !== 'all' ? S.filterProject : null)
+           || (S.projects[0]||{}).id || 'admin';
   syncQCUI();
   const el = document.getElementById('qc-title');
   if (el) el.value = '';
