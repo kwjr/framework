@@ -137,6 +137,25 @@
     }
     .proj-icon-btn:hover { background: var(--surface-2); color: var(--text); border-color: var(--border-l); }
     .proj-icon-btn svg { width: 14px; height: 14px; }
+    /* external project link badges in the project bar */
+    .proj-ext-link {
+      display:none; align-items:center; gap:5px; height:30px; padding:0 10px;
+      border:1px solid var(--border); border-radius:var(--radius-s);
+      font-family:var(--font); font-size:11px; font-weight:700;
+      color:var(--text-m); background:transparent; text-decoration:none;
+      letter-spacing:.2px; transition:var(--tr); flex-shrink:0;
+    }
+    .proj-ext-link:hover { background:var(--surface-2); color:var(--accent); border-color:rgba(59,158,255,.3); }
+    .proj-ext-link svg { width:13px; height:13px; flex-shrink:0; }
+    /* expand / collapse all */
+    .expand-ctrl {
+      font-family:var(--font); font-size:11px; font-weight:600; color:var(--text-d);
+      background:transparent; border:none; cursor:pointer;
+      padding:0 7px; height:32px; border-radius:var(--radius-xs);
+      display:flex; align-items:center; gap:4px; transition:var(--tr); white-space:nowrap;
+    }
+    .expand-ctrl:hover { color:var(--text); background:var(--surface-2); }
+    .expand-ctrl svg { width:13px; height:13px; }
     .proj-new-btn {
       margin-left: auto; height: 30px; padding: 0 12px;
       font-family: var(--font); font-size: 12px; font-weight: 600;
@@ -171,7 +190,7 @@
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23718096' d='M5 7L1 3h8z'/%3E%3C/svg%3E");
       background-repeat: no-repeat; background-position: right 8px center;
     }
-    .count-label { font-size: 12px; color: var(--text-m); margin-left: auto; white-space: nowrap; }
+    .count-label { font-size: 12px; color: var(--text-m); white-space: nowrap; }
 
     /* ── TRACKER TABLE ── */
     .setup-banner {
@@ -562,6 +581,14 @@
       <div class="proj-bar">
         <span class="proj-label">Project</span>
         <select class="proj-select" id="projectSelect"></select>
+        <a id="projPscLink" class="proj-ext-link" href="#" target="_blank" rel="noopener" title="Open PSCloud">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+          PSC
+        </a>
+        <a id="projSpLink" class="proj-ext-link" href="#" target="_blank" rel="noopener" title="Open SharePoint">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          SP
+        </a>
         <button class="proj-icon-btn" id="editProjBtn" title="Edit project settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -594,7 +621,17 @@
           <option value="due-soon">⏰ Due Soon</option>
         </select>
         <select class="filter-select" id="tFolder"><option value="">All Folders</option></select>
-        <span class="count-label" id="cLabel"></span>
+        <div style="margin-left:auto;display:flex;gap:2px;align-items:center;">
+          <button class="expand-ctrl" id="expandAllBtn" title="Expand all folders">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+            Expand all
+          </button>
+          <button class="expand-ctrl" id="collapseAllBtn" title="Collapse all folders">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/></svg>
+            Collapse all
+          </button>
+          <span class="count-label" id="cLabel" style="margin-left:8px"></span>
+        </div>
       </div>
       <div id="trackerBody"></div>
     </div>
@@ -759,6 +796,24 @@
             <option value="6">6 — Closure / Complete</option>
           </select>
           <p style="font-size:11px;color:var(--text-m);margin-top:5px">Setting a phase promotes Future artifacts in that phase to Not Started and marks earlier-phase items as Stale.</p>
+        </div>
+        <div class="form-group">
+          <label class="flabel">PSCloud Link</label>
+          <div class="url-row">
+            <input type="text" class="finput" id="pPscCloud" placeholder="https://…" autocomplete="url" spellcheck="false">
+            <button class="url-open-btn" id="pPscBtn" tabindex="-1" title="Open PSCloud">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="flabel">SharePoint Link</label>
+          <div class="url-row">
+            <input type="text" class="finput" id="pSharePoint" placeholder="https://…" autocomplete="url" spellcheck="false">
+            <button class="url-open-btn" id="pSpBtn" tabindex="-1" title="Open SharePoint">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </button>
+          </div>
         </div>
       </div>
       <div class="ssec" id="projDangerZone" style="display:none;">
@@ -1766,6 +1821,23 @@ function isValidUrl(url) {
   catch { return false; }
 }
 
+function updateProjLinkBtns() {
+  const pscUrl = (document.getElementById('pPscCloud')?.value || '').trim();
+  const spUrl  = (document.getElementById('pSharePoint')?.value || '').trim();
+  const pBtn   = document.getElementById('pPscBtn');
+  const sBtn   = document.getElementById('pSpBtn');
+  if (pBtn) {
+    const ok = isValidUrl(pscUrl);
+    pBtn.classList.toggle('active', ok);
+    pBtn.onclick = ok ? () => window.open(pscUrl, '_blank', 'noopener') : null;
+  }
+  if (sBtn) {
+    const ok = isValidUrl(spUrl);
+    sBtn.classList.toggle('active', ok);
+    sBtn.onclick = ok ? () => window.open(spUrl, '_blank', 'noopener') : null;
+  }
+}
+
 function updateUrlBtn() {
   const url = (document.getElementById('eUrl')?.value || '').trim();
   const btn = document.getElementById('eUrlBtn');
@@ -1777,6 +1849,32 @@ function updateUrlBtn() {
     btn.classList.remove('active');
     btn.onclick = null;
   }
+}
+
+// ═══════════════════════════════════════════════════════
+//  PROJECT LINKS + EXPAND / COLLAPSE ALL
+// ═══════════════════════════════════════════════════════
+function renderProjLinks() {
+  const p   = activeProject();
+  const psc = document.getElementById('projPscLink');
+  const sp  = document.getElementById('projSpLink');
+  if (!psc || !sp) return;
+  if (p && p.pscCloud && isValidUrl(p.pscCloud)) {
+    psc.href = p.pscCloud; psc.style.display = 'inline-flex';
+  } else { psc.style.display = 'none'; }
+  if (p && p.sharePoint && isValidUrl(p.sharePoint)) {
+    sp.href = p.sharePoint; sp.style.display = 'inline-flex';
+  } else { sp.style.display = 'none'; }
+}
+
+function expandAll() {
+  S.ui.collapsed = {};
+  save(); renderTracker();
+}
+
+function collapseAll() {
+  FOLDERS.forEach(f => { S.ui.collapsed[f] = true; });
+  save(); renderTracker();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1920,7 +2018,10 @@ function openNewProject() {
   document.getElementById('pBilling').value = '';
   document.getElementById('pStart').value   = '';
   document.getElementById('pPM').value      = '';
-  document.getElementById('pPhase').value   = '';
+  document.getElementById('pPhase').value      = '';
+  document.getElementById('pPscCloud').value   = '';
+  document.getElementById('pSharePoint').value = '';
+  updateProjLinkBtns();
   document.getElementById('projDangerZone').style.display = 'none';
   document.getElementById('projectOverlay').classList.add('open');
   setTimeout(() => document.getElementById('pName').focus(), 50);
@@ -1937,7 +2038,10 @@ function openEditProject(pid) {
   document.getElementById('pBilling').value = p.billing || '';
   document.getElementById('pStart').value   = p.startDate || '';
   document.getElementById('pPM').value      = p.pm      || '';
-  document.getElementById('pPhase').value   = p.currentPhase ? String(p.currentPhase) : '';
+  document.getElementById('pPhase').value      = p.currentPhase ? String(p.currentPhase) : '';
+  document.getElementById('pPscCloud').value   = p.pscCloud    || '';
+  document.getElementById('pSharePoint').value = p.sharePoint  || '';
+  updateProjLinkBtns();
   document.getElementById('projDangerZone').style.display = '';
   document.getElementById('projectOverlay').classList.add('open');
 }
@@ -1978,14 +2082,16 @@ function saveProjModal() {
   const billing = document.getElementById('pBilling').value;
   const startDate = document.getElementById('pStart').value;
   const pm      = document.getElementById('pPM').value.trim();
-  const phase   = parseInt(document.getElementById('pPhase').value) || null;
+  const phase      = parseInt(document.getElementById('pPhase').value) || null;
+  const pscCloud   = document.getElementById('pPscCloud').value.trim();
+  const sharePoint = document.getElementById('pSharePoint').value.trim();
 
   if (!name) { document.getElementById('pName').focus(); return; }
 
   if (editingProjId) {
     const p = S.projects[editingProjId];
     const oldPhase = p.currentPhase || null;
-    Object.assign(p, { name, type, billing, startDate, pm, currentPhase: phase });
+    Object.assign(p, { name, type, billing, startDate, pm, currentPhase: phase, pscCloud, sharePoint });
     if (!p.history) p.history = [];
     // On phase change: log it, then promote Future → Not Started in the new phase folder
     if (phase !== oldPhase) {
@@ -2010,7 +2116,7 @@ function saveProjModal() {
   } else {
     // Create new
     const id = newId();
-    S.projects[id] = { id, name, type, billing, startDate, pm, currentPhase: phase, createdAt: today(), tracker: {}, history: [] };
+    S.projects[id] = { id, name, type, billing, startDate, pm, currentPhase: phase, pscCloud, sharePoint, createdAt: today(), tracker: {}, history: [] };
     S.activeProjectId = id;
     initProjectTracker(id);
   }
@@ -2131,6 +2237,7 @@ function restoreBackup(file) {
 function renderAll() {
   populateFolderFilter();
   renderProjectSelect();
+  renderProjLinks();
   renderDashFilter();
   renderTracker();
   renderDashboard();
@@ -2157,7 +2264,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Project bar
   document.getElementById('projectSelect').addEventListener('change', e => {
     S.activeProjectId = e.target.value || null;
-    save(); renderTracker();
+    save(); renderTracker(); renderProjLinks();
   });
   document.getElementById('newProjBtn').addEventListener('click', openNewProject);
   document.getElementById('editProjBtn').addEventListener('click', () => {
@@ -2191,6 +2298,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Auto-set date when status changes
   document.getElementById('eUrl').addEventListener('input', updateUrlBtn);
+  document.getElementById('pPscCloud').addEventListener('input', updateProjLinkBtns);
+  document.getElementById('pSharePoint').addEventListener('input', updateProjLinkBtns);
+  document.getElementById('expandAllBtn').addEventListener('click', expandAll);
+  document.getElementById('collapseAllBtn').addEventListener('click', collapseAll);
   document.getElementById('eStatus').addEventListener('change', () => {
     if (!document.getElementById('eDate').value) document.getElementById('eDate').value = today();
   });
