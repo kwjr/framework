@@ -115,7 +115,7 @@
     .proj-bar {
       padding: 9px 18px; display: flex; gap: 8px; align-items: center;
       background: var(--surface); border-bottom: 1px solid var(--border);
-      position: sticky; top: 0; z-index: 60;
+      position: sticky; top: 0; z-index: 68;
     }
     .proj-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-d); flex-shrink: 0; }
     .proj-select {
@@ -169,8 +169,9 @@
       padding: 10px 18px; display: flex; gap: 9px;
       align-items: center; background: var(--surface);
       border-bottom: 1px solid var(--border);
-      position: sticky; top: 0; z-index: 50; flex-wrap: wrap;
+      position: sticky; top: 0; z-index: 64; flex-wrap: wrap;
     }
+    #trackerToolbar { top: var(--tracker-toolbar-top, 50px); }
     .search-wrap { position: relative; flex: 1; min-width: 140px; max-width: 240px; }
     .search-wrap svg {
       position: absolute; left: 9px; top: 50%;
@@ -312,7 +313,8 @@
     .h-ds { background:rgba(245,158,11,.08); color:var(--amber); border:1px solid rgba(245,158,11,.2); }
 
     /* phase bar */
-    .phase-bar { padding:6px 18px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:2px; overflow-x:auto; flex-shrink:0; }
+    .phase-bar { padding:6px 18px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:2px; overflow-x:auto; flex-shrink:0;
+                 position:sticky; top:var(--phase-bar-top,50px); z-index:66; }
     .phase-bar-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--text-d); margin-right:8px; flex-shrink:0; }
     .phase-sep { color:var(--text-d); font-size:10px; margin:0 3px; flex-shrink:0; }
     .phase-step { display:flex; align-items:center; gap:5px; padding:3px 9px 3px 4px; border-radius:20px; white-space:nowrap; font-size:11px; font-weight:500; flex-shrink:0; }
@@ -362,7 +364,7 @@
     .dash-toolbar {
       padding: 10px 18px; display: flex; gap: 9px; align-items: center;
       background: var(--surface); border-bottom: 1px solid var(--border);
-      position: sticky; top: 0; z-index: 50;
+      position: sticky; top: 0; z-index: 60;
     }
     .dash-toolbar-label { font-size: 12px; font-weight: 600; color: var(--text-m); white-space: nowrap; }
     .dash { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
@@ -600,7 +602,7 @@
       <!-- Phase Bar -->
       <div id="phaseBar" class="phase-bar" style="display:none"></div>
       <!-- Filter Toolbar -->
-      <div class="toolbar">
+      <div class="toolbar" id="trackerToolbar">
         <div class="search-wrap">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           <input type="text" class="search-input" id="tSearch" placeholder="Search artifacts…">
@@ -1500,6 +1502,7 @@ function renderTracker() {
   body.innerHTML = html;
   document.getElementById('tcount').textContent = visible || total;
   document.getElementById('cLabel').textContent = total ? `${visible} artifact${visible!==1?'s':''}` : '';
+  updateStickyOffsets();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2234,6 +2237,17 @@ function restoreBackup(file) {
 // ═══════════════════════════════════════════════════════
 //  RENDER ALL
 // ═══════════════════════════════════════════════════════
+function updateStickyOffsets() {
+  requestAnimationFrame(() => {
+    const projBar  = document.querySelector('#panel-tracker .proj-bar');
+    const phaseBar = document.getElementById('phaseBar');
+    const projH    = projBar  ? projBar.offsetHeight  : 0;
+    const phaseH   = (phaseBar && phaseBar.style.display !== 'none') ? phaseBar.offsetHeight : 0;
+    document.documentElement.style.setProperty('--phase-bar-top',       `${projH}px`);
+    document.documentElement.style.setProperty('--tracker-toolbar-top', `${projH + phaseH}px`);
+  });
+}
+
 function renderAll() {
   populateFolderFilter();
   renderProjectSelect();
