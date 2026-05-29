@@ -265,6 +265,26 @@
     .url-open-btn.active { color: var(--accent); border-color: rgba(59,158,255,.4); background: var(--accent-dim); }
     .url-open-btn.active:hover { background: rgba(59,158,255,.25); }
     .url-open-btn:not(.active) { color: var(--text-d); pointer-events: none; opacity: .45; }
+    /* custom artifact badges and row buttons */
+    .ca-badge { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.4px;
+                padding:2px 5px; border-radius:4px; background:rgba(59,158,255,.15);
+                color:var(--accent); border:1px solid rgba(59,158,255,.25); margin-left:6px; vertical-align:middle; }
+    .ca-edit-btn { width:22px; height:22px; border:1px solid var(--border); background:transparent;
+                   color:var(--text-d); border-radius:4px; cursor:pointer; flex-shrink:0;
+                   display:inline-flex; align-items:center; justify-content:center; transition:var(--tr); }
+    .ca-edit-btn:hover { background:var(--surface-2); color:var(--accent); border-color:rgba(59,158,255,.3); }
+    .ca-edit-btn svg { width:11px; height:11px; }
+    .add-ca-row { padding:6px 14px 8px; }
+    .add-ca-btn { font-family:var(--font); font-size:11px; font-weight:600; color:var(--text-d);
+                  background:transparent; border:1px dashed var(--border); border-radius:var(--radius-s);
+                  padding:4px 12px; cursor:pointer; transition:var(--tr); width:100%; text-align:left; }
+    .add-ca-btn:hover { color:var(--accent); border-color:rgba(59,158,255,.4); background:var(--accent-dim); }
+    /* hide-N/A and other filter toggle buttons */
+    .filter-btn { height:32px; padding:0 11px; font-family:var(--font); font-size:12px; font-weight:600;
+                  border:1px solid var(--border); border-radius:var(--radius-s);
+                  background:transparent; color:var(--text-m); cursor:pointer; transition:var(--tr); white-space:nowrap; }
+    .filter-btn:hover { background:var(--surface-2); color:var(--text); }
+    .filter-btn.active { background:var(--accent-dim); color:var(--accent); border-color:rgba(59,158,255,.3); }
     /* status-cell: clickable badge, inline editor */
     .status-cell { position: relative; }
     .status-cell:hover .sbadge { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -623,6 +643,7 @@
           <option value="due-soon">⏰ Due Soon</option>
         </select>
         <select class="filter-select" id="tFolder"><option value="">All Folders</option></select>
+        <button class="filter-btn" id="hideNABtn" title="Hide artifacts marked Not Applicable">Hide N/A</button>
         <div style="margin-left:auto;display:flex;gap:2px;align-items:center;">
           <button class="expand-ctrl" id="expandAllBtn" title="Expand all folders">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
@@ -877,6 +898,45 @@
   </div>
 </div>
 
+
+<!-- CUSTOM ARTIFACT MODAL -->
+<div class="overlay" id="caOverlay">
+  <div class="modal" style="max-width:440px;">
+    <div class="mhead">
+      <div class="mhead-info">
+        <div class="mtitle" id="caModalTitle">New Custom Artifact</div>
+        <div class="msub">Add a project-specific artifact to track</div>
+      </div>
+      <button class="icon-btn" id="closeCa">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="mbody">
+      <div class="form-group">
+        <label class="flabel">Artifact Name</label>
+        <input type="text" class="finput" id="caName" placeholder="e.g. Client Onboarding Checklist">
+      </div>
+      <div class="form-group">
+        <label class="flabel">Folder</label>
+        <select class="fselect filter-select" id="caFolder"></select>
+      </div>
+      <div class="form-group">
+        <label class="flabel">Default Cadence</label>
+        <select class="fselect filter-select" id="caCadence">
+          <option value="">As-needed / None</option>
+        </select>
+      </div>
+    </div>
+    <div class="mfoot">
+      <div class="mfoot-left">
+        <button class="btn btn-d" id="deleteCaBtn" style="display:none">Delete Artifact</button>
+      </div>
+      <button class="btn btn-g" id="cancelCa">Cancel</button>
+      <button class="btn btn-p" id="saveCa">Save Artifact</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════════════════════
 //  ARTIFACTS
@@ -982,7 +1042,7 @@ const DEF = {
   version: 2,
   activeProjectId: null,
   projects: {},
-  ui: { collapsed:{}, tSearch:'', tStatus:'', tHealth:'', tFolder:'', cSearch:'', cApplies:'', dashFilter:'' },
+  ui: { collapsed:{}, tSearch:'', tStatus:'', tHealth:'', tFolder:'', cSearch:'', cApplies:'', dashFilter:'', hideNA:false },
   global: { darkMode: true }
 };
 
@@ -1088,7 +1148,11 @@ function folderPhase(folder) {
 // Compute per-step info for the phase progress bar.
 // Uses stored status (not effectiveStatus) to avoid circular dependency.
 function phaseStepInfo(pid, phaseNum) {
-  const phArts = ARTS.filter(a => folderPhase(a.folder) === phaseNum && projectApplies(pid, a));
+  const _pStd  = ARTS.filter(a => folderPhase(a.folder) === phaseNum && projectApplies(pid, a));
+  const _pCust = (getProject(pid)?.customArts || [])
+    .filter(a => folderPhase(a.folder) === phaseNum)
+    .map(a => ({ ...a, at:['All'], custom:true }));
+  const phArts = [..._pStd, ..._pCust];
   if (!phArts.length) return { pct:0, done:0, total:0, hasRed:false };
   const done = phArts.filter(a => ['Complete','Current','N/A'].includes(projectEntry(pid, a.id).status || 'Not Started')).length;
   const total = phArts.length;
@@ -1114,7 +1178,7 @@ function stalenessDetails(pid, artId) {
   const e    = projectEntry(pid, artId);
   const stored = e.status || 'Not Started';
   // Check phase-past flag
-  const art = ARTS.find(a => a.id === artId);
+  const art = findArt(pid, artId);
   const p   = getProject(pid);
   if (art && p && p.currentPhase) {
     const fp = folderPhase(art.folder);
@@ -1157,7 +1221,7 @@ function logChange(pid, artId, changes) {
   const p = getProject(pid);
   if (!p) return;
   if (!p.history) p.history = [];
-  const art = artId ? ARTS.find(a => a.id === artId) : null;
+  const art = artId ? findArt(pid, artId) : null;
   const ts  = new Date().toISOString();
   changes.forEach(ch => {
     if (ch.from === ch.to) return;
@@ -1238,6 +1302,108 @@ function renderArtHistory(pid, artId) {
 }
 
 // ═══════════════════════════════════════════════════════
+//  CUSTOM ARTIFACT HELPERS
+// ═══════════════════════════════════════════════════════
+function customNewId() { return 'c_' + Date.now() + Math.random().toString(36).slice(2,5); }
+
+function isCustomArt(artId) { return typeof artId === 'string' && artId.startsWith('c_'); }
+
+// Look up art definition from ARTS (standard) or project customArts.
+// Handles numeric, string-numeric, or 'c_...' IDs.
+function findArt(pid, artId) {
+  const numId = typeof artId === 'string' ? parseInt(artId, 10) : artId;
+  if (Number.isInteger(numId) && numId >= 1 && numId <= 86)
+    return ARTS.find(a => a.id === numId) || null;
+  return (getProject(pid)?.customArts || []).find(a => a.id === String(artId)) || null;
+}
+
+// All applicable arts for a project: standard (filtered by type/billing) + all custom arts.
+function projectApplicableArts(pid) {
+  const p    = getProject(pid);
+  if (!p) return [];
+  const std  = ARTS.filter(a => projectApplies(pid, a));
+  const cust = (p.customArts || []).map(a => ({ ...a, at: ['All'], custom: true }));
+  return [...std, ...cust];
+}
+
+// ═══════════════════════════════════════════════════════
+//  CUSTOM ARTIFACT MODAL
+// ═══════════════════════════════════════════════════════
+let editingCaId = null; // null = new, string = editing existing
+
+function openCustomArt(folder, artId) {
+  editingCaId = artId || null;
+  const editing = !!artId;
+  document.getElementById('caModalTitle').textContent = editing ? 'Edit Custom Artifact' : 'New Custom Artifact';
+  document.getElementById('deleteCaBtn').style.display = editing ? '' : 'none';
+
+  // Populate folder dropdown
+  const fSel = document.getElementById('caFolder');
+  fSel.innerHTML = FOLDERS.map(f => `<option value="${esc(f)}" ${f===folder?'selected':''}>${esc(f)}</option>`).join('');
+
+  // Populate cadence dropdown
+  const cSel = document.getElementById('caCadence');
+  cSel.innerHTML = '<option value="">As-needed / None</option>' +
+    CADENCE_OPTIONS.map(o => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
+
+  if (editing) {
+    const art = findArt(S.activeProjectId, artId);
+    if (art) {
+      document.getElementById('caName').value   = art.name    || '';
+      fSel.value                                 = art.folder  || folder;
+      cSel.value                                 = art.cadence || '';
+    }
+  } else {
+    document.getElementById('caName').value = '';
+    cSel.value = '';
+  }
+
+  document.getElementById('caOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('caName').focus(), 50);
+}
+
+function closeCustomArt() {
+  document.getElementById('caOverlay').classList.remove('open');
+  editingCaId = null;
+}
+
+function saveCustomArt() {
+  const name    = document.getElementById('caName').value.trim();
+  const folder  = document.getElementById('caFolder').value;
+  const cadence = document.getElementById('caCadence').value;
+  if (!name) { document.getElementById('caName').focus(); return; }
+  const pid = S.activeProjectId;
+  const p   = getProject(pid);
+  if (!p) return;
+  if (!p.customArts) p.customArts = [];
+
+  if (editingCaId) {
+    // Edit existing
+    const art = p.customArts.find(a => a.id === editingCaId);
+    if (art) Object.assign(art, { name, folder, cadence });
+  } else {
+    // Create new — initialise tracker entry too
+    const id = customNewId();
+    p.customArts.push({ id, name, folder, cadence });
+    if (!p.tracker) p.tracker = {};
+    p.tracker[id] = { status:'Not Started', lastUpdated:'', url:'', cadence:'', notes:'' };
+    logChange(pid, id, [{ field:'Status', from:'', to:'Not Started' }]);
+  }
+
+  save(); closeCustomArt(); renderAll();
+}
+
+function deleteCustomArt(artId) {
+  if (!confirm('Permanently delete this custom artifact and all its tracking data?')) return;
+  const pid = S.activeProjectId;
+  const p   = getProject(pid);
+  if (!p) return;
+  p.customArts = (p.customArts || []).filter(a => a.id !== artId);
+  if (p.tracker) delete p.tracker[artId];
+  save(); closeCustomArt(); renderAll();
+}
+
+// ═══════════════════════════════════════════════════════
 //  CADENCE & AUTO-STALE
 // ═══════════════════════════════════════════════════════
 const CADENCE_OPTIONS = [
@@ -1272,8 +1438,8 @@ function cadenceDays(cadence) {
 // Returns the per-project override if set, otherwise the standard ARTS cadence.
 function effectiveCadence(pid, artId) {
   const e   = projectEntry(pid, artId);
-  const art = ARTS.find(a => a.id === artId);
-  return (e.cadence && e.cadence !== '') ? e.cadence : (art ? art.cadence : '');
+  const art = findArt(pid, artId);
+  return (e.cadence && e.cadence !== '') ? e.cadence : (art ? art.cadence || '' : '');
 }
 
 // Compute the display/scoring status for an artifact, applying auto-stale when
@@ -1284,7 +1450,7 @@ function effectiveStatus(pid, artId) {
   const stored = e.status || 'Not Started';
   if (['N/A','Future'].includes(stored)) return stored;
   // Phase-past rule
-  const _art = ARTS.find(a => a.id === artId);
+  const _art = findArt(pid, artId);
   const _p   = getProject(pid);
   if (_art && _p && _p.currentPhase) {
     const _fp = folderPhase(_art.folder);
@@ -1310,7 +1476,7 @@ function health(status) {
 function projectHealth(pid) {
   const p = getProject(pid);
   if (!p) return { total:0, g:0, am:0, r:0, fu:0, pct:0 };
-  const app = ARTS.filter(a => projectApplies(pid, a));
+  const app = projectApplicableArts(pid);
   const fu   = app.filter(a => effectiveHealth(pid, a.id) === 'future').length;
   const na   = app.filter(a => effectiveHealth(pid, a.id) === 'na').length;
   const scored = app.filter(a => !['future','na'].includes(effectiveHealth(pid, a.id)));
@@ -1418,25 +1584,28 @@ function renderTracker() {
 
   FOLDERS.forEach(folder => {
     if (fFolder && fFolder !== folder) return;
-    const arts = ARTS.filter(a => {
-      if (a.folder !== folder) return false;
+    // Standard arts + custom arts for this folder
+    const _fCust = (getProject(S.activeProjectId)?.customArts || [])
+      .filter(a => a.folder === folder)
+      .map(a => ({ ...a, at:['All'], custom:true }));
+    const _allFolderArts = [...ARTS.filter(a => a.folder === folder), ..._fCust];
+    const arts = _allFolderArts.filter(a => {
       if (q && !a.name.toLowerCase().includes(q)) return false;
-      const e    = entry(a.id);
       const effS = effectiveStatus(S.activeProjectId, a.id);
       if (fStatus && effS !== fStatus) return false;
       const _eh       = effectiveHealth(S.activeProjectId, a.id);
       const _isDueSoon = _eh === 'amber' && stalenessDetails(S.activeProjectId, a.id).dueSoon;
-      if (fHealth === 'due-soon'  && !_isDueSoon) return false;
+      if (fHealth === 'due-soon' && !_isDueSoon) return false;
       if (fHealth && fHealth !== 'due-soon' && _eh !== fHealth) return false;
+      if (S.ui.hideNA && _eh === 'na') return false;
       return true;
     });
     if (!arts.length) return;
     total += arts.length;
 
-    const allArts = ARTS.filter(a => a.folder === folder);
-    const fg = allArts.filter(a => effectiveHealth(S.activeProjectId, a.id)==='green').length;
-    const fa = allArts.filter(a => effectiveHealth(S.activeProjectId, a.id)==='amber').length;
-    const fr = allArts.filter(a => effectiveHealth(S.activeProjectId, a.id)==='red').length;
+    const fg = _allFolderArts.filter(a => effectiveHealth(S.activeProjectId, a.id)==='green').length;
+    const fa = _allFolderArts.filter(a => effectiveHealth(S.activeProjectId, a.id)==='amber').length;
+    const fr = _allFolderArts.filter(a => effectiveHealth(S.activeProjectId, a.id)==='red').length;
 
     const col = S.ui.collapsed[folder];
     const _fp = folderPhase(folder);
@@ -1445,7 +1614,7 @@ function renderTracker() {
     if (_fp && _cur) {
       if (_fp === _cur) _phCls = "ph-current";
       else if (_fp < _cur) {
-        const _phHasRed = ARTS.filter(a=>a.folder===folder).some(a=>effectiveHealth(S.activeProjectId,a.id)==='red');
+        const _phHasRed = _allFolderArts.some(a=>effectiveHealth(S.activeProjectId,a.id)==='red');
         _phCls = _phHasRed ? "ph-past-warn" : "ph-past-done";
       }
     }
@@ -1472,23 +1641,45 @@ function renderTracker() {
       const effS   = effectiveStatus(S.activeProjectId, a.id);
       const h      = effectiveHealth(S.activeProjectId, a.id);
       const sinfo  = stalenessDetails(S.activeProjectId, a.id);
-      const app    = applies(a);
+      const app    = a.custom ? true : applies(a);
       const effCad = effectiveCadence(S.activeProjectId, a.id);
       if (app) visible++;
-      html += `<tr class="${app?'':'row-na'}" onclick="openEdit(${a.id})">
-        <td class="cell-num">${a.id}</td>
-        <td>
-          <span class="cell-name">${esc(a.name)}</span>${!app?'<span class="cell-na-hint">(not applicable)</span>':''}
-          <span class="cell-cad">${esc(effCad)}</span>
-        </td>
-        <td style="text-align:center">${e.url&&isValidUrl(e.url)?`<a href="${esc(e.url)}" target="_blank" rel="noopener" class="cell-link" onclick="event.stopPropagation()" title="Open: ${esc(e.url)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>`:'<span class="cell-link-empty"></span>'}</td>
-        <td class="status-cell" onclick="statusClick(event,${a.id})" title="Click to change status">${sbadge(effS)}</td>
-        <td class="cell-date">${fmtDate(e.lastUpdated)}</td>
-        <td>${hbadge(h, sinfo)}</td>
-      </tr>`;
+      const _linkCell = e.url&&isValidUrl(e.url)
+        ? `<a href="${esc(e.url)}" target="_blank" rel="noopener" class="cell-link" onclick="event.stopPropagation()" title="Open: ${esc(e.url)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>`
+        : '<span class="cell-link-empty"></span>';
+      if (a.custom) {
+        html += `<tr onclick="openEdit('${a.id}')">
+          <td class="cell-num" style="color:var(--text-d)">—</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <div style="min-width:0;flex:1">
+                <span class="cell-name">${esc(a.name)}</span><span class="ca-badge">custom</span>
+                <span class="cell-cad">${esc(effCad)}</span>
+              </div>
+              <button class="ca-edit-btn" onclick="event.stopPropagation();openCustomArt('${esc(a.folder)}','${a.id}')" title="Edit artifact definition"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7\"/><path d=\"M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z\"/></svg></button>
+            </div>
+          </td>
+          <td style="text-align:center">${_linkCell}</td>
+          <td class="status-cell" onclick="statusClick(event,'${a.id}')" title="Click to change status">${sbadge(effS)}</td>
+          <td class="cell-date">${fmtDate(e.lastUpdated)}</td>
+          <td>${hbadge(h, sinfo)}</td>
+        </tr>`;
+      } else {
+        html += `<tr class="${app?'':'row-na'}" onclick="openEdit(${a.id})">
+          <td class="cell-num">${a.id}</td>
+          <td>
+            <span class="cell-name">${esc(a.name)}</span>${!app?'<span class="cell-na-hint">(not applicable)</span>':''}
+            <span class="cell-cad">${esc(effCad)}</span>
+          </td>
+          <td style="text-align:center">${_linkCell}</td>
+          <td class="status-cell" onclick="statusClick(event,${a.id})" title="Click to change status">${sbadge(effS)}</td>
+          <td class="cell-date">${fmtDate(e.lastUpdated)}</td>
+          <td>${hbadge(h, sinfo)}</td>
+        </tr>`;
+      }
     });
 
-    html += `</tbody></table></div></div>`;
+    html += `</tbody></table><div class="add-ca-row"><button class="add-ca-btn" onclick="openCustomArt('${esc(folder)}', null)">+ Add custom artifact</button></div></div></div>`;
   });
 
   if (!total) {
@@ -1551,11 +1742,11 @@ function renderPortfolioDashboard() {
 
   // All red items across portfolio
   const redItems = projs.flatMap(p =>
-    ARTS.filter(a => projectApplies(p.id, a) && effectiveHealth(p.id, a.id) === 'red')
+    projectApplicableArts(p.id).filter(a => effectiveHealth(p.id, a.id) === 'red')
         .map(a => ({ art:a, proj:p }))
   );
   const amberItems = projs.flatMap(p =>
-    ARTS.filter(a => projectApplies(p.id, a) && effectiveHealth(p.id, a.id) === 'amber')
+    projectApplicableArts(p.id).filter(a => effectiveHealth(p.id, a.id) === 'amber')
         .map(a => ({ art:a, proj:p }))
   );
 
@@ -1656,7 +1847,7 @@ function renderProjectDashboard(pid) {
   const p = getProject(pid);
   if (!p) { renderPortfolioDashboard(); return; }
 
-  const app = ARTS.filter(a => projectApplies(pid, a));
+  const app = projectApplicableArts(pid);
   const fu   = app.filter(a => effectiveHealth(pid, a.id)==='future').length;
   const na   = app.filter(a => effectiveHealth(pid, a.id)==='na').length;
   const scored = app.filter(a => !['future','na'].includes(effectiveHealth(pid, a.id)));
@@ -1670,7 +1861,9 @@ function renderProjectDashboard(pid) {
   const rw  = total>0?(r/total*100).toFixed(1):0;
 
   const folderStats = FOLDERS.map(f => {
-    const fas = ARTS.filter(a => a.folder===f && projectApplies(pid,a) && !['future','na'].includes(effectiveHealth(pid,a.id)));
+    const _fsStd  = ARTS.filter(a => a.folder===f && projectApplies(pid,a) && !['future','na'].includes(effectiveHealth(pid,a.id)));
+    const _fsCust = (getProject(pid)?.customArts||[]).filter(a=>a.folder===f && !['future','na'].includes(effectiveHealth(pid,a.id))).map(a=>({...a,at:['All'],custom:true}));
+    const fas = [..._fsStd, ..._fsCust];
     const fg  = fas.filter(a => effectiveHealth(pid,a.id)==='green').length;
     const fa  = fas.filter(a => effectiveHealth(pid,a.id)==='amber').length;
     const fr  = fas.filter(a => effectiveHealth(pid,a.id)==='red').length;
@@ -1928,7 +2121,8 @@ function statusClick(event, artId) {
     // Preserve scroll position through re-render
     const main = document.querySelector('main');
     const scrollY = main.scrollTop;
-    renderAll();
+    document.getElementById('hideNABtn').classList.toggle('active', !!S.ui.hideNA);
+  renderAll();
     main.scrollTop = scrollY;
   }
 
@@ -1952,7 +2146,7 @@ function statusClick(event, artId) {
 function openEdit(artId) {
   if (!S.activeProjectId) return;
   editingArtId = artId;
-  const a = ARTS.find(x => x.id === artId);
+  const a = findArt(S.activeProjectId, artId);
   const e = entry(artId);
   document.getElementById('editTitle').textContent = a.name;
   document.getElementById('editSub').textContent   = a.folder;
@@ -1971,7 +2165,9 @@ function openEdit(artId) {
   const _notice = document.getElementById('eAutoStaleNote');
   if (_notice) _notice.style.display = (_effS === 'Stale' && (e.status||'Not Started') !== 'Stale') ? 'block' : 'none';
   document.getElementById('eNotes').value   = e.notes || '';
-  document.getElementById('eCadInfo').innerHTML = `<strong>Cadence:</strong> ${esc(a.cadence)} &nbsp;·&nbsp; <strong>Applies to:</strong> ${a.at.join(', ')}`;
+  document.getElementById('eCadInfo').innerHTML = a?.custom
+    ? `<strong>Custom artifact</strong> &nbsp;·&nbsp; ${esc(a.folder)}`
+    : (a ? `<strong>Cadence:</strong> ${esc(a.cadence)} &nbsp;·&nbsp; <strong>Applies to:</strong> ${a.at.join(', ')}` : '');
   renderArtHistory(S.activeProjectId, artId);
   document.getElementById('editOverlay').classList.add('open');
 }
@@ -2119,7 +2315,7 @@ function saveProjModal() {
   } else {
     // Create new
     const id = newId();
-    S.projects[id] = { id, name, type, billing, startDate, pm, currentPhase: phase, pscCloud, sharePoint, createdAt: today(), tracker: {}, history: [] };
+    S.projects[id] = { id, name, type, billing, startDate, pm, currentPhase: phase, pscCloud, sharePoint, createdAt: today(), tracker: {}, history: [], customArts: [] };
     S.activeProjectId = id;
     initProjectTracker(id);
   }
@@ -2188,7 +2384,7 @@ function jumpTo(artId, pid) {
   document.getElementById('tHealth').value='';
   document.getElementById('tFolder').value='';
   // Expand folder
-  const a = ARTS.find(x => x.id === artId);
+  const a = findArt(S.activeProjectId, artId) || ARTS.find(x => x.id === artId);
   if (a) S.ui.collapsed[a.folder] = false;
   renderProjectSelect();
   renderTracker();
@@ -2222,7 +2418,8 @@ function restoreBackup(file) {
           id, name: p.settings?.projectName || 'Imported Project',
           type: p.settings?.projectType || '', billing: p.settings?.billingModel || '',
           startDate: p.settings?.startDate || '', pm: p.settings?.pm || '',
-          createdAt: today(), tracker: p.tracker || {}
+          currentPhase: null, createdAt: today(),
+          tracker: p.tracker || {}, history: [], customArts: []
         };
         S.activeProjectId = id;
         S.global.darkMode = p.settings?.darkMode ?? true;
@@ -2316,6 +2513,20 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('pSharePoint').addEventListener('input', updateProjLinkBtns);
   document.getElementById('expandAllBtn').addEventListener('click', expandAll);
   document.getElementById('collapseAllBtn').addEventListener('click', collapseAll);
+
+  // Custom artifact modal
+  document.getElementById('closeCa').addEventListener('click', closeCustomArt);
+  document.getElementById('cancelCa').addEventListener('click', closeCustomArt);
+  document.getElementById('saveCa').addEventListener('click', saveCustomArt);
+  document.getElementById('deleteCaBtn').addEventListener('click', () => deleteCustomArt(editingCaId));
+  document.getElementById('caOverlay').addEventListener('click', e => { if (e.target===e.currentTarget) closeCustomArt(); });
+
+  // Hide N/A toggle
+  document.getElementById('hideNABtn').addEventListener('click', () => {
+    S.ui.hideNA = !S.ui.hideNA;
+    document.getElementById('hideNABtn').classList.toggle('active', S.ui.hideNA);
+    save(); renderTracker();
+  });
   document.getElementById('eStatus').addEventListener('change', () => {
     if (!document.getElementById('eDate').value) document.getElementById('eDate').value = today();
   });
@@ -2348,11 +2559,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Keyboard shortcuts
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeEdit(); closeProjModal(); closeSettings(); }
+    if (e.key === 'Escape') { closeEdit(); closeProjModal(); closeSettings(); closeCustomArt(); }
     if ((e.ctrlKey||e.metaKey) && e.key==='Enter') {
       if (document.getElementById('editOverlay').classList.contains('open')) saveEdit();
       if (document.getElementById('projectOverlay').classList.contains('open')) saveProjModal();
       if (document.getElementById('settingsOverlay').classList.contains('open')) saveSettings();
+      if (document.getElementById('caOverlay').classList.contains('open')) saveCustomArt();
     }
   });
 
