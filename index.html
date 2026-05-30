@@ -432,7 +432,18 @@
     /* Folder breakdown */
     .fbreakdown { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
     .fbreakdown-title { font-size: 13px; font-weight: 600; padding: 13px 17px; border-bottom: 1px solid var(--border); }
-    .fbrow { display: flex; align-items: center; gap: 12px; padding: 8px 17px; border-bottom: 1px solid var(--border); }
+    .fbrow { display: flex; align-items: center; gap: 12px; padding: 8px 17px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background var(--tr); }
+    .fbrow:hover { background: var(--surface-h); }
+    .fbrow-arrow { color: var(--text-d); flex-shrink:0; }
+    .archived-badge { font-size:10px; font-weight:700; padding:2px 7px; border-radius:4px;
+                      background:var(--amber-bg); color:var(--amber); border:1px solid rgba(245,158,11,.2); flex-shrink:0; }
+    .archived-banner { display:flex; align-items:center; gap:14px; padding:13px 17px;
+                       background:var(--amber-bg); border:1px solid rgba(245,158,11,.25); border-radius:var(--radius); }
+    .archived-banner svg { width:20px; height:20px; color:var(--amber); flex-shrink:0; }
+    .archived-banner-text { flex:1; font-size:13px; color:var(--amber); font-weight:500; }
+    .archived-banner-sub { font-size:11px; color:var(--text-m); margin-top:2px; font-weight:400; }
+    .proj-notes-box { font-size:12px; color:var(--text-m); line-height:1.5; white-space:pre-wrap;
+                      padding:10px 12px; background:var(--surface-2); border-radius:var(--radius-s); margin-top:10px; }
     .fbrow:last-child { border-bottom: none; }
     .fbrow-name { flex: 1; font-size: 12px; font-weight: 500; }
     .fb-minibar { width: 90px; height: 5px; border-radius: 3px; background: var(--surface-2); overflow: hidden; display: flex; flex-shrink: 0; }
@@ -603,6 +614,7 @@
       <div class="proj-bar">
         <span class="proj-label">Project</span>
         <select class="proj-select" id="projectSelect"></select>
+        <span id="projArchivedBadge" class="archived-badge" style="display:none">Archived</span>
         <a id="projPscLink" class="proj-ext-link" href="#" target="_blank" rel="noopener" title="Open PSCloud">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
           PSC
@@ -664,6 +676,7 @@
       <div class="dash-toolbar">
         <span class="dash-toolbar-label">View:</span>
         <select class="filter-select" id="dashFilter" style="min-width:200px;"></select>
+        <button class="filter-btn" id="showArchivedBtn" style="margin-left:auto" title="Include archived projects in portfolio view">Show archived</button>
       </div>
       <div class="dash" id="dashBody"></div>
     </div>
@@ -839,10 +852,19 @@
           </div>
         </div>
       </div>
+      <div class="ssec">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="flabel">Project Notes</label>
+          <textarea class="ftarea" id="pNotes" placeholder="Internal notes, context, reminders…" style="min-height:80px"></textarea>
+        </div>
+      </div>
       <div class="ssec" id="projDangerZone" style="display:none;">
         <div class="ssec-title" style="color:var(--red)">Danger Zone</div>
-        <p style="font-size:12px;color:var(--text-m);margin-bottom:13px;">Permanently delete this project and all its artifact data. This cannot be undone.</p>
-        <button class="btn btn-d" id="deleteProjBtn">Delete Project</button>
+        <p style="font-size:12px;color:var(--text-m);margin-bottom:11px;">Archive to hide from the active portfolio while preserving all data. Or permanently delete everything.</p>
+        <div style="display:flex;gap:9px;flex-wrap:wrap;">
+          <button class="btn" id="archiveProjBtn">Archive Project</button>
+          <button class="btn btn-d" id="deleteProjBtn">Delete Project</button>
+        </div>
       </div>
     </div>
     <div class="mfoot">
@@ -1042,7 +1064,7 @@ const DEF = {
   version: 2,
   activeProjectId: null,
   projects: {},
-  ui: { collapsed:{}, tSearch:'', tStatus:'', tHealth:'', tFolder:'', cSearch:'', cApplies:'', dashFilter:'', hideNA:false },
+  ui: { collapsed:{}, tSearch:'', tStatus:'', tHealth:'', tFolder:'', cSearch:'', cApplies:'', dashFilter:'', hideNA:false, showArchived:false },
   global: { darkMode: true }
 };
 
@@ -1520,19 +1542,35 @@ function applyTheme() {
 // ═══════════════════════════════════════════════════════
 function renderProjectSelect() {
   const sel = document.getElementById('projectSelect');
-  const projs = allProjects();
-  sel.innerHTML = projs.length
-    ? projs.map(p => `<option value="${esc(p.id)}" ${p.id===S.activeProjectId?'selected':''}>${esc(p.name||'Unnamed Project')}</option>`).join('')
-    : '<option value="">— No projects yet —</option>';
-  document.getElementById('editProjBtn').style.display = projs.length ? '' : 'none';
+  const active   = activeProjects();
+  const archived = allProjects().filter(p => p.archived);
+  if (!active.length && !archived.length) {
+    sel.innerHTML = '<option value="">— No projects yet —</option>';
+    document.getElementById('editProjBtn').style.display = 'none';
+    return;
+  }
+  const mkOpt = p => `<option value="${esc(p.id)}" ${p.id===S.activeProjectId?'selected':''}>${esc(p.name||'Unnamed Project')}${p.archived?' (archived)':''}</option>`;
+  sel.innerHTML = active.map(mkOpt).join('')
+    + (archived.length ? '<option disabled>──────────────</option>' + archived.map(mkOpt).join('') : '');
+  document.getElementById('editProjBtn').style.display = '';
 }
 
 function renderDashFilter() {
   const sel = document.getElementById('dashFilter');
-  const projs = allProjects();
+  const active   = activeProjects();
+  const archived = allProjects().filter(p => p.archived);
   const cur = S.ui.dashFilter;
-  sel.innerHTML = `<option value="">Portfolio — All Projects (${projs.length})</option>` +
-    projs.map(p => `<option value="${esc(p.id)}" ${p.id===cur?'selected':''}>${esc(p.name||'Unnamed')}</option>`).join('');
+  const mkOpt = p => `<option value="${esc(p.id)}" ${p.id===cur?'selected':''}>${esc(p.name||'Unnamed')}${p.archived?' (archived)':''}</option>`;
+  const label = S.ui.showArchived
+    ? `Portfolio — All Projects (${active.length + archived.length})`
+    : `Portfolio — Active (${active.length})`;
+  sel.innerHTML = `<option value="">${label}</option>` + active.map(mkOpt).join('')
+    + (S.ui.showArchived && archived.length
+        ? '<option disabled>── Archived ──</option>' + archived.map(mkOpt).join('')
+        : '');
+  // Sync button state
+  const btn = document.getElementById('showArchivedBtn');
+  if (btn) btn.classList.toggle('active', !!S.ui.showArchived);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1706,8 +1744,8 @@ function renderDashboard() {
   if (!projs.length) {
     body.innerHTML = `<div class="empty">
       <div class="empty-icon">📊</div>
-      <div class="empty-title">No projects to show</div>
-      <div class="empty-sub">Create a project in the Tracker tab to see dashboard data.</div>
+      <div class="empty-title">${allProj.length ? 'All projects are archived' : 'No projects to show'}</div>
+      <div class="empty-sub">${allProj.length ? 'Toggle \'Show archived\' to view them.' : 'Create a project in the Tracker tab to see dashboard data.'}</div>
     </div>`;
     return;
   }
@@ -1875,6 +1913,13 @@ function renderProjectDashboard(pid) {
   const amberItems = app.filter(a => effectiveHealth(pid,a.id)==='amber');
 
   let html = `
+    <!-- Archived banner (shown when project is archived) -->
+    ${p.archived ? `<div class="archived-banner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5" rx="1"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+      <div class="archived-banner-text">Project archived
+        <div class="archived-banner-sub">Excluded from portfolio health. <button class="link-btn" onclick="archiveProject('${esc(pid)}', false)">Restore project</button></div>
+      </div>
+    </div>` : ''}
     <!-- Project Card -->
     <div class="card">
       <div style="display:flex;align-items:flex-start;gap:16px;">
@@ -1928,11 +1973,12 @@ function renderProjectDashboard(pid) {
         const aw2=ft>0?(fa/ft*100).toFixed(1):0;
         const rw2=ft>0?(fr/ft*100).toFixed(1):0;
         const col=fp>=70?'var(--green)':fp>=40?'var(--amber)':'var(--red)';
-        return `<div class="fbrow">
+        return `<div class="fbrow" onclick="jumpToFolder('${esc(pid)}','${esc(f)}')" title="Open ${esc(f)} in Tracker">
           <span class="fbrow-name">${esc(f)}</span>
           <div class="fb-minibar"><div class="fbmb-g" style="width:${gw2}%"></div><div class="fbmb-a" style="width:${aw2}%"></div><div class="fbmb-r" style="width:${rw2}%"></div></div>
           <span class="fb-pct" style="color:${col}">${fp}%</span>
           <span class="fb-cnt">${ft}</span>
+          <svg class="fbrow-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
         </div>`;
       }).join('')}
     </div>
@@ -2048,10 +2094,52 @@ function updateUrlBtn() {
 }
 
 // ═══════════════════════════════════════════════════════
+//  ARCHIVE / ACTIVE PROJECT HELPERS
+// ═══════════════════════════════════════════════════════
+function activeProjects() {
+  return Object.values(S.projects)
+    .filter(p => !p.archived)
+    .sort((a,b) => (a.name||'').localeCompare(b.name||''));
+}
+
+function archiveProject(pid, archive = true) {
+  const p = getProject(pid);
+  if (!p) return;
+  p.archived = archive;
+  save();
+  closeProjModal();
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════════════
+//  DASHBOARD → TRACKER FOLDER LINK
+// ═══════════════════════════════════════════════════════
+function jumpToFolder(pid, folder) {
+  if (pid && getProject(pid)) S.activeProjectId = pid;
+  S.ui.tSearch = ''; S.ui.tStatus = ''; S.ui.tHealth = ''; S.ui.tFolder = folder;
+  S.ui.collapsed[folder] = false;
+  // Switch tab
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector('[data-tab="tracker"]').classList.add('active');
+  document.getElementById('panel-tracker').classList.add('active');
+  // Sync filter inputs
+  document.getElementById('tSearch').value = '';
+  document.getElementById('tStatus').value = '';
+  document.getElementById('tHealth').value = '';
+  document.getElementById('tFolder').value = folder;
+  save();
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════════════
 //  PROJECT LINKS + EXPAND / COLLAPSE ALL
 // ═══════════════════════════════════════════════════════
 function renderProjLinks() {
   const p   = activeProject();
+  // Archived badge in project bar
+  let _ab = document.getElementById('projArchivedBadge');
+  if (_ab) _ab.style.display = (p && p.archived) ? '' : 'none';
   const psc = document.getElementById('projPscLink');
   const sp  = document.getElementById('projSpLink');
   if (!psc || !sp) return;
@@ -2220,6 +2308,7 @@ function openNewProject() {
   document.getElementById('pPhase').value      = '';
   document.getElementById('pPscCloud').value   = '';
   document.getElementById('pSharePoint').value = '';
+  document.getElementById('pNotes').value      = '';
   updateProjLinkBtns();
   document.getElementById('projDangerZone').style.display = 'none';
   document.getElementById('projectOverlay').classList.add('open');
@@ -2240,7 +2329,16 @@ function openEditProject(pid) {
   document.getElementById('pPhase').value      = p.currentPhase ? String(p.currentPhase) : '';
   document.getElementById('pPscCloud').value   = p.pscCloud    || '';
   document.getElementById('pSharePoint').value = p.sharePoint  || '';
+  document.getElementById('pNotes').value      = p.notes       || '';
   updateProjLinkBtns();
+  // Archive button — label and style change based on current state
+  const _aBtn = document.getElementById('archiveProjBtn');
+  if (_aBtn) {
+    _aBtn.textContent = p.archived ? 'Restore Project' : 'Archive Project';
+    _aBtn.style.cssText = p.archived
+      ? 'background:var(--accent-dim);color:var(--accent);border:1px solid rgba(59,158,255,.3)'
+      : 'background:var(--amber-bg);color:var(--amber);border:1px solid rgba(245,158,11,.2)';
+  }
   document.getElementById('projDangerZone').style.display = '';
   document.getElementById('projectOverlay').classList.add('open');
 }
@@ -2284,13 +2382,14 @@ function saveProjModal() {
   const phase      = parseInt(document.getElementById('pPhase').value) || null;
   const pscCloud   = document.getElementById('pPscCloud').value.trim();
   const sharePoint = document.getElementById('pSharePoint').value.trim();
+  const notes      = document.getElementById('pNotes').value.trim();
 
   if (!name) { document.getElementById('pName').focus(); return; }
 
   if (editingProjId) {
     const p = S.projects[editingProjId];
     const oldPhase = p.currentPhase || null;
-    Object.assign(p, { name, type, billing, startDate, pm, currentPhase: phase, pscCloud, sharePoint });
+    Object.assign(p, { name, type, billing, startDate, pm, currentPhase: phase, pscCloud, sharePoint, notes });
     if (!p.history) p.history = [];
     // On phase change: log it, then promote Future → Not Started in the new phase folder
     if (phase !== oldPhase) {
@@ -2315,7 +2414,7 @@ function saveProjModal() {
   } else {
     // Create new
     const id = newId();
-    S.projects[id] = { id, name, type, billing, startDate, pm, currentPhase: phase, pscCloud, sharePoint, createdAt: today(), tracker: {}, history: [], customArts: [] };
+    S.projects[id] = { id, name, type, billing, startDate, pm, currentPhase: phase, pscCloud, sharePoint, notes, createdAt: today(), tracker: {}, history: [], customArts: [] };
     S.activeProjectId = id;
     initProjectTracker(id);
   }
@@ -2487,6 +2586,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('cancelProjModal').addEventListener('click', closeProjModal);
   document.getElementById('saveProjModal').addEventListener('click', saveProjModal);
   document.getElementById('deleteProjBtn').addEventListener('click', () => deleteProject(editingProjId));
+  document.getElementById('archiveProjBtn').addEventListener('click', () => {
+    if (editingProjId) archiveProject(editingProjId, !getProject(editingProjId)?.archived);
+  });
+  document.getElementById('showArchivedBtn').addEventListener('click', () => {
+    S.ui.showArchived = !S.ui.showArchived;
+    save(); renderDashFilter(); renderDashboard();
+  });
   document.getElementById('projectOverlay').addEventListener('click', e => { if (e.target===e.currentTarget) closeProjModal(); });
 
   // Settings
